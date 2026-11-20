@@ -1,36 +1,2822 @@
-{
-    "sync_interval": 5,
-    "inject_delay": 1.6,
-    "targets": [
-        {
-            "target": "chespirito121321",
-            "override_cps": "$600M/s",
-            "obtained": "This was obtained from Witch's Fuse",
-            "exists": "53 Exist",
-            "items": [
-                {
-                    "name": "Headless Horseman",
-                    "mutation": "Default",
-                    "traits": [],
-                    "isUnique": false,
-                    "cps": 600000000
-                }
-            ]
-        },
-        {
-            "target": "solomz90",
-            "override_cps": "$450M/s",
-            "obtained": "This was obtained from The Red Carpet",
-            "exists": "2,609 Exist",
-            "items": [
-                {
-                    "name": "Skibidi Toilet",
-                    "mutation": "Default",
-                    "traits": [],
-                    "isUnique": false,
-                    "cps": 450000000
-                }
-            ]
-        }
-    ]
+-- ══ DELTA MOBILE PATCH v2 ══
+task.wait(1.5)
+
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+task.wait(1)
+
+if not getconnections then
+    getconnections = function() return {} end
+end
+if not writefile then
+    writefile = function() end
+end
+if not readfile then
+    readfile = function() return "{}" end
+end
+if not gethui then
+    gethui = function() return game:GetService("CoreGui") end
+end
+if not setclipboard then
+    setclipboard = function() end
+end
+if not syn then
+    syn = { request = nil, protect_gui = nil }
+end
+
+-- ══ KIWI SNIPER — ANIMALS EDITION V4 + DIGIT+ UNDETECTED + WAIT FILTER + HUMAN JITTER + INTERRUPT PATCH ══
+pcall(function()
+	local old = getgenv().KiwiSniperGui
+	if old and old.Parent then old:Destroy() end
+end)
+getgenv().KIWISNIPER = true
+
+if not table.clear then function table.clear(t) for k in pairs(t) do t[k]=nil end end end
+
+_G.ScriptEnabled       = true
+_G.AutoWriteEnabled    = false
+_G.AutoSubmitEnabled   = false
+_G.RiddleSolverEnabled = false
+_G.SammyFilterEnabled  = true
+_G.SubmitAfterCount    = 1
+_G.SubmitAttempts      = 3
+_G.AnchorEnabled       = false
+_G.AutoBuyEnabled      = false
+_G.SubmitEachEnabled   = false
+
+_G.RedeemMode      = "ULTRA"
+_G.DigitDelay      = 0.045
+_G.DigitFinalDelay = 0.08
+_G.DigitPlusMinWords = 3
+
+local Players     = game:GetService("Players")
+local UIS         = game:GetService("UserInputService")
+local GuiService  = game:GetService("GuiService")
+local TS          = game:GetService("TweenService")
+local RS          = game:GetService("ReplicatedStorage")
+local LP          = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+
+-- ══ ANIMALS LIVE READER ═════════════════════════════════════════
+local AnimalsData   = {}
+local newBrainrots  = {}
+local newestBrainrot = nil
+local SAVE_PATH     = "kiwi_animals.json"
+
+local function fmtNum(n)
+	if n >= 1e9 then return string.format("%.2fb", n/1e9)
+	elseif n >= 1e6 then return string.format("%.1fm", n/1e6)
+	elseif n >= 1e3 then return string.format("%.1fk", n/1e3)
+	end
+	return tostring(math.floor(n))
+end
+
+do
+	local savedKeys = {}
+	pcall(function()
+		local raw     = readfile(SAVE_PATH)
+		if raw then
+			local decoded = HttpService:JSONDecode(raw)
+			if type(decoded) == "table" then
+				for _, k in ipairs(decoded) do savedKeys[k] = true end
+			end
+		end
+	end)
+	local freshInstall = next(savedKeys) == nil
+
+	local ok, raw = pcall(require, RS.Datas.Animals)
+	if ok and type(raw) == "table" then
+		for key, entry in pairs(raw) do
+			if type(entry) ~= "table" then continue end
+			if type(entry.DisplayName) ~= "string" then continue end
+			if type(entry.IsEnabled) == "function" then
+				local ok2, enabled = pcall(entry.IsEnabled)
+				if ok2 and enabled == false then continue end
+			end
+			local gen   = tonumber(entry.Generation) or 0
+			local price = tonumber(entry.Price)       or 0
+			AnimalsData[key] = {
+				key      = key,
+				display  = entry.DisplayName,
+				displayUp = entry.DisplayName:upper():gsub("%s+",""),
+				gen      = gen,
+				price    = price,
+				rarity   = tostring(entry.Rarity or "Unknown"):upper(),
+				spawn    = tostring(entry.SpawnVFX or "none"):upper(),
+				machine  = tostring(entry.Machine or ""):upper(),
+			}
+		end
+
+		if not freshInstall then
+			for k, entry in pairs(AnimalsData) do
+				if not savedKeys[k] then
+					table.insert(newBrainrots, entry)
+				end
+			end
+			if #newBrainrots > 0 then
+				table.sort(newBrainrots, function(a,b) return a.gen > b.gen end)
+				newestBrainrot = newBrainrots[1]
+			end
+		end
+
+		pcall(function()
+			local keys = {}
+			for k in pairs(AnimalsData) do table.insert(keys, k) end
+			writefile(SAVE_PATH, HttpService:JSONEncode(keys))
+		end)
+	else
+		warn("[KIWI] Animals load fail")
+	end
+end
+
+local byRarity, byGen, byPrice, byMachine = {}, {}, {}, {}
+for _, e in pairs(AnimalsData) do
+	local r = e.rarity
+	if not byRarity[r] then byRarity[r] = {} end
+	table.insert(byRarity[r], e)
+	table.insert(byGen,   e)
+	table.insert(byPrice, e)
+	if e.machine ~= "" then
+		if not byMachine[e.machine] then byMachine[e.machine] = {} end
+		table.insert(byMachine[e.machine], e)
+	end
+end
+table.sort(byGen,   function(a,b) return a.gen   > b.gen   end)
+table.sort(byPrice, function(a,b) return a.price > b.price end)
+for _, list in pairs(byRarity) do
+	table.sort(list, function(a,b) return a.gen > b.gen end)
+end
+for _, list in pairs(byMachine) do
+	table.sort(list, function(a,b) return a.gen > b.gen end)
+end
+
+-- ══ ANIMALS SOLVER ══════════════════════════════════════════════
+local function normalizeQ(text)
+	return tostring(text or ""):lower()
+		:gsub("(%d)%.(%d)", "%1DOT%2")
+		:gsub("[^%w%s]", " ")
+		:gsub("%s+", " ")
+		:gsub("(%d)DOT(%d)", "%1.%2")
+		:match("^%s*(.-)%s*$")
+end
+
+local function parseNumber(s)
+	s = s:gsub(",", "")
+	local n, suffix = s:match("^([%d%.]+)([kmbt]?)$")
+	if not n then return nil end
+	n = tonumber(n)
+	if not n then return nil end
+	if suffix == "k" then return n * 1e3
+	elseif suffix == "m" then return n * 1e6
+	elseif suffix == "b" then return n * 1e9
+	elseif suffix == "t" then return n * 1e12
+	end
+	return n
+end
+
+local function findByName(query)
+	local q = query:upper():gsub("%s+","")
+	for _, e in pairs(AnimalsData) do
+		if e.displayUp == q then return e end
+	end
+	local best, bestScore = nil, 0
+	for _, e in pairs(AnimalsData) do
+		if e.displayUp:find(q, 1, true) then
+			local score = #q / #e.displayUp
+			if score > bestScore then best, bestScore = e, score end
+		end
+	end
+	if best and bestScore >= 0.5 then return best end
+	return nil
+end
+
+local function findByGen(n, tolerance)
+	tolerance = tolerance or 0.02
+	local results = {}
+	for _, e in pairs(AnimalsData) do
+		if math.abs(e.gen - n) / math.max(n, 1) <= tolerance then
+			table.insert(results, e)
+		end
+	end
+	table.sort(results, function(a,b) return a.gen > b.gen end)
+	return results
+end
+
+local function findByPrice(n, tolerance)
+	tolerance = tolerance or 0.02
+	local results = {}
+	for _, e in pairs(AnimalsData) do
+		if e.price > 0 and math.abs(e.price - n) / math.max(n, 1) <= tolerance then
+			table.insert(results, e)
+		end
+	end
+	table.sort(results, function(a,b) return a.price > b.price end)
+	return results
+end
+
+local RARITY_RANK = {
+	COMMON=1, UNCOMMON=2, RARE=3, EPIC=4, LEGENDARY=5,
+	MYTHIC=6, SECRET=7, OG=8
 }
+
+local KNOWN_MACHINES = {
+	"HAUNTEDFUSE","RAINBOWFUSE","DIVINEFUSE","SUMMERFUSE","WITCHFUSE",
+	"SANTASFUSE","FUSEMACHINE","CRAFTMACHINE","BUBBLEGUMMACHINE",
+	"DUELSMACHINE","CUPIDSMACHINE","TRADEMACHINE","RAINBOWMACHINE",
+	"EGGINCUBATOR","CYBERCRAFTMACHINE","LOSTRADERS","BRAINROTDEALER",
+}
+
+local function extractMachineFromText(q)
+	local qup = q:upper():gsub("%s+","")
+	for _, m in ipairs(KNOWN_MACHINES) do
+		if qup:find(m, 1, true) then return m end
+	end
+	local pairs2 = {
+		{"haunted","fuse","HAUNTEDFUSE"}, {"rainbow","fuse","RAINBOWFUSE"},
+		{"divine","fuse","DIVINEFUSE"}, {"summer","fuse","SUMMERFUSE"},
+		{"witch","fuse","WITCHFUSE"}, {"santa","fuse","SANTASFUSE"},
+		{"fuse","machine","FUSEMACHINE"}, {"craft","machine","CRAFTMACHINE"},
+		{"bubblegum","machine","BUBBLEGUMMACHINE"}, {"duels","machine","DUELSMACHINE"},
+		{"cupid","machine","CUPIDSMACHINE"}, {"trade","machine","TRADEMACHINE"},
+		{"rainbow","machine","RAINBOWMACHINE"}, {"egg","incubator","EGGINCUBATOR"},
+		{"cyber","craft","CYBERCRAFTMACHINE"}, {"lost","traders","LOSTRADERS"},
+	}
+	for _, p in ipairs(pairs2) do
+		if q:find(p[1],1,true) and q:find(p[2],1,true) then return p[3] end
+	end
+	return nil
+end
+
+local function solveAnimals(text)
+	local q = normalizeQ(text)
+	local tokens = {}
+	for w in q:gmatch("%S+") do table.insert(tokens, w) end
+	local present = {}
+	for _, t in ipairs(tokens) do present[t] = true end
+
+	local function has(...) for _, w in ipairs({...}) do if present[w] then return true end end return false end
+
+	local function findGenNumber()
+		local rawQ = q:gsub("%s+", " ")
+		for num, suffix in rawQ:gmatch("(%d+%.?%d*)%s*([kmbt])") do
+			local n = parseNumber(num .. suffix)
+			if n and n > 100 then return n end
+		end
+		for _, t in ipairs(tokens) do
+			local clean = t:gsub("/s$",""):gsub("ps$","")
+			local n = parseNumber(clean)
+			if n and n > 10000 then return n end
+		end
+		return nil
+	end
+
+	local newIntent = has("new","newest","latest","recent") and
+		(has("brainrot","brainrots") or has("rarity","generation","gen"))
+	local requestedTier = nil
+	for tier in pairs(RARITY_RANK) do
+		if present[tier:lower()] then requestedTier = tier break end
+	end
+	if newIntent then
+		local candidates = {}
+		for _, entry in ipairs(newBrainrots) do
+			if not requestedTier or entry.rarity == requestedTier then
+				table.insert(candidates, entry)
+			end
+		end
+		table.sort(candidates, function(a, b) return a.gen > b.gen end)
+		if has("how","many","count") and requestedTier then
+			return tostring(#candidates)
+		elseif has("how","many","count") then
+			return tostring(#newBrainrots)
+		end
+		local targetGen = findGenNumber()
+		if targetGen then
+			local matches = {}
+			for _, entry in ipairs(candidates) do
+				if math.abs(entry.gen - targetGen) / math.max(targetGen, 1) <= 0.03 then
+					table.insert(matches, entry)
+				end
+			end
+			if #matches == 1 then return matches[1].displayUp end
+			if #matches > 1 then
+				local names = {}
+				for _, entry in ipairs(matches) do table.insert(names, entry.displayUp) end
+				return table.concat(names, "/")
+			end
+			return nil
+		end
+		if requestedTier then
+			if candidates[1] then return candidates[1].displayUp end
+			return nil
+		end
+		if candidates[1] then return candidates[1].displayUp end
+		return nil
+	end
+
+	if has("newest","latest","new","recent") and has("brainrot","brainrots","secret") then
+		if has("today","released","release","came","just","added") and newestBrainrot then
+			local n = findGenNumber()
+			if n then
+				local results = findByGen(n)
+				if #results >= 1 then return results[1].displayUp end
+			end
+			return newestBrainrot.displayUp
+		end
+		if newestBrainrot then return newestBrainrot.displayUp end
+		if byGen[1] then return byGen[1].displayUp end
+	end
+
+	if has("today","released","release","came","just","added") then
+		local hasBrainWord = has("brainrot","brainrots","secret","newest","latest","new")
+		local n = findGenNumber()
+		if not hasBrainWord and not n then return nil end
+		if n then
+			if #newBrainrots > 0 then
+				local results = findByGen(n, 0.05)
+				for _, res in ipairs(results) do
+					for _, nb in ipairs(newBrainrots) do
+						if nb.key == res.key then return res.displayUp end
+					end
+				end
+			end
+			local results = findByGen(n, 0.03)
+			if #results >= 1 then return results[1].displayUp end
+		end
+		if hasBrainWord and newestBrainrot then return newestBrainrot.displayUp end
+		return nil
+	end
+
+	if has("one","that","does","it","its","one","which") or
+	   has("generates","generate","make","makes","earn","earns","income","production","produce","doing") then
+		local n = findGenNumber()
+		if n then
+			local results = findByGen(n, 0.03)
+			if #results == 1 then return results[1].displayUp end
+			if #results > 1 then
+				local names = {}
+				for _, e in ipairs(results) do table.insert(names, e.displayUp) end
+				return table.concat(names, "/")
+			end
+		end
+	end
+
+	if has("how","many") and has("brainrot","brainrots","exist","exists","total","there") then
+		local count = 0
+		for _ in pairs(AnimalsData) do count += 1 end
+		return tostring(count)
+	end
+
+	if has("best","top","highest","rarest","strongest") and
+	   (has("machine","fuse","incubator","dealer","trader") or has("in","inside","from","within")) then
+		local machineName = extractMachineFromText(q)
+		if machineName and byMachine[machineName] then
+			return byMachine[machineName][1].displayUp
+		end
+		if has("fuse","machine","incubator","dealer","trader") then return nil end
+	end
+
+	if has("most","expensive","highest","best","top","rarest") and has("price","cost","costs","worth") then
+		if byPrice[1] then return byPrice[1].displayUp end
+	end
+	if has("cheapest","lowest","least","worst","common") and has("price","cost","costs","worth") then
+		for i = #byPrice, 1, -1 do
+			if byPrice[i].price > 0 then return byPrice[i].displayUp end
+		end
+	end
+
+	if has("highest","most","best","top","richest","strongest") and has("generation","gen","income","produce","generates","makes","earn") then
+		if byGen[1] then return byGen[1].displayUp end
+	end
+	if has("lowest","least","worst","poorest","weakest") and has("generation","gen","income","produce","generates","makes","earn") then
+		if byGen[#byGen] then return byGen[#byGen].displayUp end
+	end
+
+	if has("generates","generate","make","makes","earn","earns","income","production","produce") then
+		local n = findGenNumber()
+		if n then
+			local results = findByGen(n)
+			if #results == 1 then return results[1].displayUp end
+			if #results > 1 then
+				local names = {}
+				for _, e in ipairs(results) do table.insert(names, e.displayUp) end
+				return table.concat(names, "/")
+			end
+		end
+	end
+
+	if has("costs","cost","price","buy","worth","unlock") then
+		for _, t in ipairs(tokens) do
+			local n = parseNumber(t)
+			if n and n > 0 then
+				local results = findByPrice(n)
+				if #results >= 1 then return results[1].displayUp end
+			end
+		end
+	end
+
+	if has("how","much") and has("generate","generates","make","makes","earn","earns","income") then
+		local stopWords = {how=1,much=1,does=1,["do"]=1,the=1,a=1,brainrot=1,
+			generate=1,generates=1,make=1,makes=1,earn=1,earns=1,
+			per=1,second=1,income=1,produce=1}
+		local nameParts = {}
+		for _, t in ipairs(tokens) do
+			if not stopWords[t] then table.insert(nameParts, t) end
+		end
+		local nameQuery = table.concat(nameParts, " ")
+		if nameQuery ~= "" then
+			local e = findByName(nameQuery)
+			if e then return fmtNum(e.gen) end
+		end
+	end
+
+	if has("rarity","rare") and (has("what","whats","which","is") or has("of")) then
+		local stopWords = {what=1,whats=1,which=1,is=1,the=1,a=1,
+			rarity=1,rare=1,of=1,brainrot=1}
+		local nameParts = {}
+		for _, t in ipairs(tokens) do
+			if not stopWords[t] then table.insert(nameParts, t) end
+		end
+		local nameQuery = table.concat(nameParts, " ")
+		if nameQuery ~= "" then
+			local e = findByName(nameQuery)
+			if e then return e.rarity end
+		end
+	end
+
+	if has("how","much") and has("cost","costs","price","worth","buy") then
+		local stopWords = {how=1,much=1,does=1,["do"]=1,the=1,a=1,brainrot=1,
+			cost=1,costs=1,price=1,worth=1,buy=1,is=1}
+		local nameParts = {}
+		for _, t in ipairs(tokens) do
+			if not stopWords[t] then table.insert(nameParts, t) end
+		end
+		local nameQuery = table.concat(nameParts, " ")
+		if nameQuery ~= "" then
+			local e = findByName(nameQuery)
+			if e and e.price > 0 then return fmtNum(e.price) end
+		end
+	end
+
+	if has("rarest","best","highest","strongest") and not has("generation","gen","income","produce") then
+		local tierPriority = {"OG","SECRET","MYTHIC","LEGENDARY","EPIC","RARE","UNCOMMON","COMMON"}
+		for _, tier in ipairs(tierPriority) do
+			if present[tier:lower()] then
+				local list = byRarity[tier]
+				if list and list[1] then return list[1].displayUp end
+			end
+		end
+	end
+
+	if has("best","top","highest","strongest","rarest") and has("brainrot","secret","brainrots") then
+		local tierPriority = {"OG","SECRET","MYTHIC","LEGENDARY","EPIC","RARE","UNCOMMON","COMMON"}
+		for _, tier in ipairs(tierPriority) do
+			if present[tier:lower()] then
+				local list = byRarity[tier]
+				if list and list[1] then return list[1].displayUp end
+			end
+		end
+	end
+
+	if has("how","many") then
+		local tierPriority = {"OG","SECRET","MYTHIC","LEGENDARY","EPIC","RARE","UNCOMMON","COMMON"}
+		for _, tier in ipairs(tierPriority) do
+			if present[tier:lower()] then
+				local list = byRarity[tier] or {}
+				return tostring(#list)
+			end
+		end
+	end
+
+	if has("spawn","vfx","effect","spawns","with") then
+		local stopWords = {which=1,what=1,brainrot=1,has=1,the=1,a=1,
+			spawn=1,vfx=1,effect=1,spawns=1,with=1,is=1}
+		local nameParts = {}
+		for _, t in ipairs(tokens) do
+			if not stopWords[t] then table.insert(nameParts, t) end
+		end
+		local nameQuery = table.concat(nameParts, " ")
+		if nameQuery ~= "" then
+			local e = findByName(nameQuery)
+			if e then return e.spawn end
+		end
+		if nameQuery ~= "" then
+			local vfxQ = nameQuery:upper():gsub("%s+","")
+			for _, e in pairs(AnimalsData) do
+				if e.spawn:upper():gsub("%s+",""):find(vfxQ, 1, true) then
+					return e.displayUp
+				end
+			end
+		end
+	end
+
+	local nameClean = q:upper():gsub("%s+","")
+	if AnimalsData[nameClean] then
+		return AnimalsData[nameClean].displayUp
+	end
+
+	return nil
+end
+
+-- ══ EXTERNAL SOLVER ═════════════════════════════════════════════
+local RIDDLE_URL  = "https://raw.githubusercontent.com/bunnysabscript/bunnyhub/refs/heads/main/pasteyes"
+local externalSolve = function() return nil end
+
+local function loadExternalSolver()
+	for attempt = 1, 3 do
+		local ok, fn = pcall(function()
+			return loadstring(game:HttpGet(RIDDLE_URL .. "?t=" .. os.time(), true))()
+		end)
+		if ok and type(fn) == "function" then
+			externalSolve = fn
+			print("[KIWI] External solver loaded")
+			return true
+		end
+		task.wait(1)
+	end
+	warn("[KIWI] External solver unavailable")
+	return false
+end
+task.spawn(loadExternalSolver)
+
+-- ══ HYBRID SOLVER ═══════════════════════════════════════════════
+local function isStatQuery(text)
+	local q = text:lower()
+	if q:find("mutation") then return false end
+	if q:find("day of the month") then return false end
+	if q:find("what day") then return false end
+	if q:find("what month") then return false end
+	if q:find("what year") then return false end
+	if q:find("what date") then return false end
+	local statKeywords = {
+		"generate","generates","earn","earns","income","per second",
+		"m/s","k/s","b/s","does %.-%d","that does","the one that",
+		"cost","costs","price","buy","worth","rarity","rare",
+		"how much","how many","highest gen","lowest gen",
+		"best in.*machine","best in.*fuse","in the.*machine","in the.*fuse",
+		"released today","came out today","added today",
+		"newest brainrot","latest brainrot","new brainrot",
+		"new brainrot common","new brainrot uncommon","new brainrot rare",
+		"new brainrot epic","new brainrot legendary","new brainrot mythic",
+		"new brainrot secret","new brainrot og",
+	}
+	for _, kw in ipairs(statKeywords) do
+		if q:find(kw) then return true end
+	end
+	return false
+end
+
+local function solveRiddle(raw)
+	if not raw or raw == "" then return nil end
+	if isStatQuery(raw) then
+		local ans = solveAnimals(raw)
+		if ans and ans ~= "" then return ans end
+		local extAns = externalSolve(raw)
+		if extAns and extAns ~= "" then return extAns end
+		return nil
+	end
+	local extAns = externalSolve(raw)
+	if extAns and extAns ~= "" then return extAns end
+	local ans = solveAnimals(raw)
+	if ans and ans ~= "" then return ans end
+	return nil
+end
+
+-- ══ THEME ═══════════════════════════════════════════════════════
+local Theme = {
+	Void      = Color3.fromRGB(4,14,8),
+	Panel     = Color3.fromRGB(11,26,17),
+	PanelSoft = Color3.fromRGB(18,42,27),
+	Card      = Color3.fromRGB(15,34,22),
+	Cyan      = Color3.fromRGB(160,230,90),
+	Teal      = Color3.fromRGB(60,175,110),
+	Violet    = Color3.fromRGB(200,225,100),
+	Green     = Color3.fromRGB(110,230,150),
+	Amber     = Color3.fromRGB(255,200,90),
+	Red       = Color3.fromRGB(255,110,120),
+	Text      = Color3.fromRGB(235,250,235),
+	Muted     = Color3.fromRGB(155,190,165),
+	ToggleOff = Color3.fromRGB(32,55,40),
+}
+local FT,FB,FM = Enum.Font.GothamBold,Enum.Font.Gotham,Enum.Font.GothamMedium
+local TIQ = TweenInfo.new(0.55,Enum.EasingStyle.Quint,Enum.EasingDirection.Out)
+local TIS = TweenInfo.new(0.28,Enum.EasingStyle.Sine,Enum.EasingDirection.Out)
+local TIB = TweenInfo.new(0.4,Enum.EasingStyle.Back,Enum.EasingDirection.Out)
+
+local function corner(p,r) local c=Instance.new("UICorner") c.CornerRadius=UDim.new(0,r or 12) c.Parent=p return c end
+local function stroke(p,col,th,tr) local s=Instance.new("UIStroke") s.Color=col or Theme.Cyan s.Thickness=th or 1 s.Transparency=tr or 0.4 s.Parent=p return s end
+
+-- ══ STATE ═══════════════════════════════════════════════════════
+local pendingQueue,pendingSeen,collectedCodes,collectedSeen={},{},{},{}
+local writeBusy=false
+local batchGot=0
+local DEBUG=false
+local function dbg(...) if DEBUG then print("[KIWI]",...) end end
+local ScreenGui,MainFrame,Orb
+local StatusDot,StatusTitle,StatusSub,QueueLabel,CollectedLabel,activityHost
+local ActivityList={}
+local currentTab="Main"
+local isMinimized=false
+
+local captureMode=nil
+local captureUntil=0
+local armRoot=nil
+local function rootGui(obj)
+	local c=obj
+	while c and c.Parent do
+		if c.Parent:IsA("PlayerGui") then return c end
+		c=c.Parent
+	end
+end
+local ONLY_ROOT="TopNotification"
+local function fromTop(obj) local r=rootGui(obj) return r~=nil and r.Name==ONLY_ROOT end
+
+local function sameSource(obj) if not armRoot or not armRoot.Parent then return true end return obj~=nil and rootGui(obj)==armRoot end
+local function isUiNoise(text)
+	local u=tostring(text or ""):gsub("<[^>]->",""):upper():gsub("%s+","")
+	return u:match("^%d+S?LEFT$") or u:match("^%d+OF%d+$") or u:match("^%d+[KM]?S$")
+end
+local bufferedParts={}
+local lastSammyText,lastSammyAt="",0
+local lastQueuedAt=0
+
+local refreshAioInfo
+local pushActivity
+
+-- ══ WAIT SPAM DETECTOR ══════════════════════════════════════════
+local function isWaitSpam(text)
+	local t = tostring(text or ""):lower():gsub("<[^>]->",""):gsub("%s+","")
+	if t:match("^w+a*i*t+[!%?%.]*$") then return true end
+	if t:match("^w+[ao]+[i]*[t]+[!%?%.]*$") then return true end
+	if t == "w8" or t == "weit" or t == "waaait" then return true end
+	local stripped = t:gsub("[^%a%d]","")
+	if #stripped <= 8 and stripped:match("^w[ao]?[a-z]*i?t?$") then return true end
+	return false
+end
+
+local waitWindowActive   = false
+local waitWindowExpires  = 0
+local WAIT_WINDOW_SECS   = 8
+
+local function activateWaitWindow()
+	waitWindowActive  = true
+	waitWindowExpires = tick() + WAIT_WINDOW_SECS
+	pcall(function() setStatus("⏳ WAIT DETECTED", "Holding fire…", "wait") end)
+	pcall(function() if pushActivity then pushActivity("WAIT spam → holding fire", Theme.Amber) end end)
+	task.delay(WAIT_WINDOW_SECS + 0.1, function()
+		if tick() >= waitWindowExpires then
+			waitWindowActive = false
+			pcall(function() setStatus("● ONLINE", "Wait window cleared", "ok") end)
+			pcall(function() if pushActivity then pushActivity("Wait window cleared", Theme.Muted) end end)
+		end
+	end)
+end
+
+local function isInWaitWindow()
+	if not waitWindowActive then return false end
+	if tick() >= waitWindowExpires then
+		waitWindowActive = false
+		return false
+	end
+	return true
+end
+
+-- ══ STATUS ══════════════════════════════════════════════════════
+local function setStatus(title,sub,mode)
+	title=(tostring(title or ""):gsub("^●%s*",""))
+	if StatusTitle then StatusTitle.Text=title end
+	if StatusSub then StatusSub.Text=sub or "" end
+	if StatusDot then
+		local c=Theme.Cyan
+		if mode=="ok" then c=Theme.Green
+		elseif mode=="err" then c=Theme.Red
+		elseif mode=="wait" then c=Theme.Muted
+		elseif mode=="arm" then c=Theme.Amber
+		end
+		StatusDot.BackgroundColor3=c
+	end
+end
+
+local function updateCounters()
+	local t=math.max(1,math.floor(tonumber(_G.SubmitAfterCount) or 1))
+	if QueueLabel then QueueLabel.Text=tostring(#pendingQueue) end
+	if CollectedLabel then
+		CollectedLabel.Text=_G.SubmitEachEnabled and ("EACH "..(#collectedCodes)) or (tostring(#collectedCodes).." / "..tostring(t))
+	end
+	if refreshAioInfo then refreshAioInfo() end
+end
+
+local _isMobile=UIS.TouchEnabled
+
+local function restoreCamera(cf,fov)
+	pcall(function()
+		local cam=workspace.CurrentCamera
+		if not cam then return end
+		if cf then cam.CFrame=cf end
+		if fov then cam.FieldOfView=fov end
+	end)
+end
+
+local function isGuiVisible(obj)
+	if not obj then return false end
+	if obj:IsA("GuiObject") and not obj.Visible then return false end
+	local c=obj.Parent
+	while c do
+		if c:IsA("GuiObject") and not c.Visible then return false end
+		if c:IsA("ScreenGui") and not c.Enabled then return false end
+		c=c.Parent
+	end
+	return true
+end
+
+local function formatCode(code) return string.upper(tostring(code or ""):gsub("%s+","")) end
+local function isGameFeedback(text)
+	local t=tostring(text or ""):lower():gsub("<[^>]->",""):gsub("[^%a]","")
+	local bad={"invalid","pleasewait","tryingtoredeem","redeemanothercode","alreadyredeemed","expired","successfullyredeemed"}
+	for _,k in ipairs(bad) do if t:find(k,1,true) then return true end end
+	return false
+end
+local function looksLikeCode(token)
+	if not token or #token<1 or #token>48 then return false end
+	if token:find("%s") then return false end
+	local low=token:lower()
+	if low=="code" or low=="riddle" then return false end
+	return token:match("^[%w%-%_]+$")~=nil
+end
+local function extractCodesFromText(text)
+	local found={}
+	if not text then return found end
+	local trimmed=(text:match("^%s*(.-)%s*$") or ""):gsub("<[^>]->","")
+	local stripped=trimmed
+		:gsub("^[Tt]he%s+[Cc]ode%s+[Ii]s%s*","")
+		:gsub("^[Cc]ode%s+[Ii]s%s*","")
+		:gsub("^[Uu]se%s+[Cc]ode%s*","")
+		:gsub("^[Tt]he%s+[Aa]nswer%s+[Ii]s%s*","")
+		:gsub("^[Aa]nswer%s+[Ii]s%s*","")
+		:gsub("^%s+","")
+	if looksLikeCode(stripped) and not stripped:find("%s") then
+		table.insert(found,string.upper(stripped))
+		return found
+	end
+	if looksLikeCode(trimmed) and not trimmed:find("%s") then
+		table.insert(found,string.upper(trimmed))
+		return found
+	end
+	for token in stripped:gmatch("[%w%-%_]+") do
+		if looksLikeCode(token) and #token>=4 then
+			table.insert(found,string.upper(token))
+		end
+	end
+	return found
+end
+local function copyCode(code)
+	local f=formatCode(code)
+	pcall(function()
+		if setclipboard then setclipboard(f) elseif toclipboard then toclipboard(f) end
+	end)
+end
+
+-- ══ DIGIT+ ENGINE ═══════════════════════════════════════════════
+local digitPlus = {
+	wordList      = {},
+	wordCount     = 0,
+	busy          = false,
+	enabled       = false,
+	stopped       = false,
+	currentText   = "",
+	interrupt     = false,
+	pendingAppend = "",
+}
+
+local getconns_dp = getconnections
+
+local function dp_lognormal(base)
+	base = base or 0.045
+	local u1 = math.max(1e-10, math.random())
+	local u2 = math.random()
+	local z  = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+	local j  = base * math.exp(z * 0.3)
+	j = math.clamp(j, 0.015, base * 5)
+	if math.random() < 0.07 then j = j + 0.08 + math.random() * 0.15 end
+	if math.random() < 0.008 then j = j + 0.4 + math.random() * 0.6 end
+	task.wait(j)
+end
+
+local function dp_findBox()
+	local pg = LP:FindFirstChild("PlayerGui")
+	if not pg then return nil end
+	local codesGui = pg:FindFirstChild("Codes")
+	if codesGui then
+		local function showChain(obj)
+			local cur = obj
+			while cur and cur.Parent do
+				if cur:IsA("GuiObject") then cur.Visible = true end
+				if cur:IsA("ScreenGui") then cur.Enabled = true end
+				cur = cur.Parent
+			end
+		end
+		showChain(codesGui)
+		local root = codesGui:FindFirstChild("Codes") or codesGui
+		showChain(root)
+		for _, d in ipairs(root:GetDescendants()) do
+			if d:IsA("TextBox") then showChain(d) return d end
+		end
+	end
+	for _, d in ipairs(pg:GetDescendants()) do
+		if d:IsA("TextBox") then
+			local hint = ((d.PlaceholderText or "") .. " " .. d.Name):lower()
+			if hint:find("code") or hint:find("redeem") or hint:find("enter") then
+				return d
+			end
+		end
+	end
+	return nil
+end
+
+local function dp_findBtn(nearBox)
+	local pg = LP:FindFirstChild("PlayerGui")
+	if not pg then return nil end
+	local function isOk(obj)
+		if not (obj:IsA("TextButton") or obj:IsA("ImageButton")) then return false end
+		if ScreenGui and obj:IsDescendantOf(ScreenGui) then return false end
+		local h = (((obj:IsA("TextButton") and obj.Text) or "") .. " " .. obj.Name):lower()
+		return h:find("confirm") or h:find("submit") or h:find("redeem") or h:find("enter") or h:find("claim")
+	end
+	if nearBox then
+		local c, lv = nearBox.Parent, 0
+		while c and lv < 8 do
+			for _, ch in ipairs(c:GetChildren()) do
+				if isOk(ch) then return ch end
+				for _, g in ipairs(ch:GetChildren()) do if isOk(g) then return g end end
+			end
+			c = c.Parent; lv += 1
+		end
+	end
+	for _, d in ipairs(pg:GetDescendants()) do if isOk(d) then return d end end
+	return nil
+end
+
+local function dp_doSubmit(box, finalText)
+	pcall(function()
+		box.Text           = finalText
+		box.CursorPosition = #finalText + 1
+	end)
+	if digitPlus.stopped then
+		pcall(function() box:ReleaseFocus(false) end)
+		return false
+	end
+	task.wait(0.03 + math.random() * 0.04)
+	pcall(function()
+		local cs = getconns_dp(box.FocusLost)
+		if cs and #cs > 0 then
+			for _, c in ipairs(cs) do
+				if c.Enabled ~= false then pcall(function() c:Fire(true) end) end
+			end
+		end
+	end)
+	task.wait(0.02)
+	local btn = dp_findBtn(box)
+	if btn then
+		pcall(function()
+			local cs = getconns_dp(btn.Activated)
+			if cs and #cs > 0 and cs[1].Enabled ~= false then
+				pcall(function() cs[1]:Fire() end)
+			end
+		end)
+		pcall(function()
+			local cs = getconns_dp(btn.MouseButton1Click)
+			if cs and #cs > 0 and cs[1].Enabled ~= false then
+				pcall(function() cs[1]:Fire() end)
+			end
+		end)
+	end
+	local _rfRemote = nil
+	pcall(function()
+		for _, root in ipairs({RS:FindFirstChild("RF"), RS:FindFirstChild("Packages"), RS}) do
+			if root then
+				for _, r in ipairs(root:GetDescendants()) do
+					if r:IsA("RemoteFunction") then
+						local n = r.Name:lower()
+						if n:find("code") or n:find("redeem") or n:find("promo") then
+							_rfRemote = r break
+						end
+					end
+				end
+			end
+			if _rfRemote then break end
+		end
+		if _rfRemote then _rfRemote:InvokeServer(finalText) end
+	end)
+	pcall(function() box:ReleaseFocus(false) end)
+	pcall(function() game:GetService("GuiService").SelectedObject = nil end)
+	digitPlus.currentText = ""
+	return true
+end
+
+local function dp_typeAndSubmit(fullText)
+	local box = dp_findBox()
+	if not box then
+		setStatus("⚠ DIGIT+ NO BOX", "Abre el UI de canjeo", "err")
+		return false
+	end
+	local delay = _G.DigitDelay or 0.045
+	pcall(function() box.TextEditable = true end)
+	local changedConns = {}
+	pcall(function()
+		local cs = getconns_dp(box:GetPropertyChangedSignal("Text"))
+		if cs then changedConns = cs end
+	end)
+	local function fireChanged()
+		for _, c in ipairs(changedConns) do
+			if c.Enabled ~= false then pcall(function() c:Fire() end) end
+		end
+	end
+	digitPlus.currentText = fullText
+	digitPlus.interrupt   = false
+	local built = ""
+	local i = 1
+	task.wait(0.12 + math.random() * 0.22)
+	while i <= #fullText do
+		if digitPlus.interrupt then
+			local appended = digitPlus.currentText .. digitPlus.pendingAppend
+			digitPlus.interrupt     = false
+			digitPlus.pendingAppend = ""
+			digitPlus.currentText   = appended
+			if pushActivity then pushActivity("DIGIT+ INTERRUPT → " .. appended, Theme.Amber) end
+			setStatus("DIGIT+ SUBMIT", appended, "arm")
+			return dp_doSubmit(box, appended)
+		end
+		if digitPlus.stopped then
+			pcall(function() box:ReleaseFocus(false) end)
+			return false
+		end
+		local chunkSize = 1
+		local r = math.random()
+		if r < 0.22 then chunkSize = 2
+		elseif r < 0.07 then chunkSize = 3
+		end
+		chunkSize = math.min(chunkSize, #fullText - i + 1)
+		local chunk = fullText:sub(i, i + chunkSize - 1)
+		built = built .. chunk
+		i = i + chunkSize
+		pcall(function()
+			box.Text           = built
+			box.CursorPosition = #built + 1
+		end)
+		fireChanged()
+		dp_lognormal(delay * chunkSize)
+	end
+	if digitPlus.interrupt then
+		local appended = digitPlus.currentText .. digitPlus.pendingAppend
+		digitPlus.interrupt     = false
+		digitPlus.pendingAppend = ""
+		digitPlus.currentText   = appended
+		return dp_doSubmit(box, appended)
+	end
+	local submitDelay = 0.15 + math.random() * 0.45
+	if math.random() < 0.20 then
+		submitDelay = submitDelay + 0.3 + math.random() * 0.5
+	end
+	task.wait(submitDelay)
+	if digitPlus.interrupt then
+		local appended = digitPlus.currentText .. digitPlus.pendingAppend
+		digitPlus.interrupt     = false
+		digitPlus.pendingAppend = ""
+		return dp_doSubmit(box, appended)
+	end
+	return dp_doSubmit(box, digitPlus.currentText ~= "" and digitPlus.currentText or fullText)
+end
+
+local DP_MIN_CODE   = 3
+local DP_MIN_RIDDLE = 1
+local dpAccumBuffer = ""
+local dpSessionFired = false
+
+local function digitPlus_receiveWord(word, context)
+	if not digitPlus.enabled then return end
+	word = formatCode(word)
+	if word == "" then return end
+	dpAccumBuffer = dpAccumBuffer .. word
+	if digitPlus.busy then
+		digitPlus.currentText   = dpAccumBuffer
+		digitPlus.pendingAppend = ""
+		digitPlus.interrupt     = true
+		if pushActivity then
+			pushActivity("DIGIT+ INTERRUPT → " .. dpAccumBuffer, Theme.Amber)
+		end
+		return
+	end
+	table.insert(digitPlus.wordList, word)
+	digitPlus.wordCount = #digitPlus.wordList
+	local minWords = (context == "riddle") and DP_MIN_RIDDLE or DP_MIN_CODE
+	local effectiveMin = dpSessionFired and 1 or minWords
+	if pushActivity then
+		local ctx = context == "riddle" and "🔮RIDDLE" or "📝CODE"
+		pushActivity(
+			"DIGIT+ " .. ctx .. " [" .. digitPlus.wordCount .. "/" .. effectiveMin .. "]: " .. dpAccumBuffer,
+			Theme.Violet
+		)
+	end
+	setStatus(
+		"DIGIT+ [" .. digitPlus.wordCount .. "/" .. effectiveMin .. "]",
+		dpAccumBuffer,
+		"arm"
+	)
+	if digitPlus.wordCount < effectiveMin then return end
+	task.spawn(function()
+		digitPlus.busy = true
+		local textToType = dpAccumBuffer
+		digitPlus.wordList  = {}
+		digitPlus.wordCount = 0
+		dpSessionFired      = true
+		dp_typeAndSubmit(textToType)
+		digitPlus.busy = false
+	end)
+end
+
+local function digitPlus_reset()
+	digitPlus.wordList      = {}
+	digitPlus.wordCount     = 0
+	digitPlus.busy          = false
+	digitPlus.stopped       = true
+	digitPlus.interrupt     = false
+	digitPlus.pendingAppend = ""
+	digitPlus.currentText   = ""
+	dpAccumBuffer           = ""
+	dpSessionFired          = false
+	task.wait(0.1)
+	digitPlus.stopped = false
+	if pushActivity then pushActivity("DIGIT+ RESET", Theme.Amber) end
+end
+
+-- ══ BOX / SUBMIT HELPERS ════════════════════════════════════════
+local _cachedBox = nil
+local function _isCodeBox(obj)
+	if not obj:IsA("TextBox") then return false end
+	if ScreenGui and obj:IsDescendantOf(ScreenGui) then return false end
+	if not isGuiVisible(obj) then return false end
+	local hint=((obj.PlaceholderText or "").." "..obj.Name):lower()
+	if hint:find("code") or hint:find("redeem") or hint:find("enter") or hint:find("type") or hint:find("here") then return true end
+	local sz=obj.AbsoluteSize
+	return sz.X>=80 and sz.Y>=20 and sz.Y<=80
+end
+
+local _codesBox,_codesBtn=nil,nil
+local function showChainUltra(inst,pg)
+	local cur=inst
+	while cur and cur~=pg do
+		if cur:IsA("GuiObject") then cur.Visible=true end
+		if cur:IsA("ScreenGui") then cur.Enabled=true end
+		cur=cur.Parent
+	end
+end
+local function forceOpenCodes()
+	local pg=LP:FindFirstChild("PlayerGui")
+	if not pg then return nil end
+	if _codesBox and _codesBox.Parent then
+		showChainUltra(_codesBox,pg)
+		if _codesBtn and _codesBtn.Parent then showChainUltra(_codesBtn,pg) end
+		return _codesBox
+	end
+	local codesGui=pg:FindFirstChild("Codes")
+	if not codesGui then return nil end
+	showChainUltra(codesGui,pg)
+	local root=codesGui:FindFirstChild("Codes") or codesGui
+	showChainUltra(root,pg)
+	local box
+	for _,d in ipairs(root:GetDescendants()) do
+		if d:IsA("TextBox") then box=d break end
+	end
+	if not box then return nil end
+	_codesBox=box
+	local function isOkBtn(o)
+		if not (o:IsA("TextButton") or o:IsA("ImageButton")) then return false end
+		local h=(((o:IsA("TextButton") and o.Text) or "").." "..o.Name):lower()
+		return h:find("submit") or h:find("redeem") or h:find("claim") or h:find("confirm") or h:find("enter")
+	end
+	for _,d in ipairs(root:GetDescendants()) do
+		if isOkBtn(d) then _codesBtn=d break end
+	end
+	showChainUltra(box,pg)
+	if _codesBtn then showChainUltra(_codesBtn,pg) end
+	return box
+end
+
+local function findCodeTextBox()
+	local forced=forceOpenCodes()
+	if forced then _cachedBox=forced return forced end
+	if _cachedBox and _cachedBox.Parent then return _cachedBox end
+	_cachedBox=nil
+	local focused=UIS:GetFocusedTextBox()
+	if focused and _isCodeBox(focused) then _cachedBox=focused return focused end
+	local pg=LP:FindFirstChild("PlayerGui")
+	if not pg then return nil end
+	for _,d in ipairs(pg:GetDescendants()) do
+		if _isCodeBox(d) then _cachedBox=d return d end
+	end
+	return nil
+end
+
+local getconnsU = getconnections
+local function fireConnsU(signal, ...)
+	if not getconnsU then return false end
+	local ok, cs = pcall(getconnsU, signal)
+	if not ok or type(cs) ~= "table" or #cs == 0 then return false end
+	local fired = false
+	local args = table.pack(...)
+	for _, conn in ipairs(cs) do
+		if conn.Enabled ~= false then
+			local fn = nil
+			pcall(function() fn = conn.Function end)
+			local ok2
+			if fn then ok2 = pcall(task.spawn, fn, table.unpack(args, 1, args.n))
+			else ok2 = pcall(function() conn:Fire(table.unpack(args, 1, args.n)) end) end
+			fired = fired or ok2
+		end
+	end
+	return fired
+end
+
+local function isSubmitButton(obj,allowHidden)
+	if not (obj:IsA("TextButton") or obj:IsA("ImageButton")) then return false end
+	if ScreenGui and obj:IsDescendantOf(ScreenGui) then return false end
+	if not allowHidden and not isGuiVisible(obj) then return false end
+	local hint=(((obj:IsA("TextButton") and obj.Text) or "").." "..obj.Name):lower()
+	if allowHidden then return hint:find("redeem") or hint:find("submit") or hint:find("claim") or hint:find("confirm") end
+	return hint:find("redeem") or hint:find("submit") or hint:find("claim") or hint:find("confirm") or hint:find("enter")
+end
+
+local _cachedSubmitBtn=nil
+local function findSubmitButton(nearObj,allowHidden)
+	local container,levels=nearObj and nearObj.Parent,0
+	while container and levels<8 do
+		for _,ch in ipairs(container:GetChildren()) do
+			if isSubmitButton(ch,allowHidden) then return ch end
+			for _,g in ipairs(ch:GetChildren()) do
+				if isSubmitButton(g,allowHidden) then return g end
+			end
+		end
+		container=container.Parent
+		levels+=1
+	end
+	local pg=LP:FindFirstChild("PlayerGui")
+	if pg then
+		for _,ch in ipairs(pg:GetDescendants()) do
+			if isSubmitButton(ch,allowHidden) then return ch end
+		end
+	end
+end
+local function fireSubmitButton(nearObj)
+	local target=(_codesBtn and _codesBtn.Parent) and _codesBtn or _cachedSubmitBtn
+	if not (target and target.Parent) then
+		_cachedSubmitBtn=nil
+		target=findSubmitButton(nearObj,false) or findSubmitButton(nearObj,true)
+		_cachedSubmitBtn=target
+	end
+	if not target then return false end
+	local sig = target.Activated
+	if typeof(firesignal) == "function" and pcall(firesignal, sig) then return true end
+	if typeof(getconnsU) == "function" then
+		local ok, cs = pcall(getconnsU, sig)
+		if ok and type(cs) == "table" and #cs > 0 then pcall(function() cs[1]:Fire() end) return true end
+	end
+	return false
+end
+
+local function fireBoxFocusLost(box, enter)
+	if not box then return false end
+	if typeof(firesignal) == "function" then
+		return (pcall(firesignal, box.FocusLost, enter == true))
+	end
+	return false
+end
+
+local _rfRemoteUltra=nil
+local function redeemViaRF(code)
+	if not _rfRemoteUltra or not _rfRemoteUltra.Parent then
+		_rfRemoteUltra=nil
+		for _,root in ipairs({RS:FindFirstChild("RF"),RS:FindFirstChild("Packages"),RS}) do
+			if root then
+				for _,r in ipairs(root:GetDescendants()) do
+					if r:IsA("RemoteFunction") then
+						local n=string.lower(r.Name)
+						if n:find("code") or n:find("redeem") or n:find("promo") then _rfRemoteUltra=r break end
+					end
+				end
+			end
+			if _rfRemoteUltra then break end
+		end
+	end
+	if not _rfRemoteUltra then return false end
+	return pcall(function() _rfRemoteUltra:InvokeServer(formatCode(code)) end)
+end
+
+local function safeTypeIntoBox(textBox,fullText,noFocus)
+	if not textBox then return end
+	local cam=workspace.CurrentCamera
+	local savedCF,savedFOV
+	pcall(function() if cam then savedCF=cam.CFrame savedFOV=cam.FieldOfView end end)
+	pcall(function() textBox.ClearTextOnFocus=false textBox.TextEditable=true end)
+	pcall(function() textBox.Text=fullText end)
+	if not _isMobile and not noFocus then
+		pcall(function() textBox:CaptureFocus() textBox.CursorPosition=#fullText+1 end)
+		task.wait()
+		pcall(function() textBox:ReleaseFocus(false) end)
+	else
+		pcall(function() if textBox:IsFocused() then textBox:ReleaseFocus(false) end end)
+	end
+	pcall(function() GuiService.SelectedObject=nil end)
+	restoreCamera(savedCF,savedFOV)
+	task.defer(function()
+		restoreCamera(savedCF,savedFOV)
+		pcall(function()
+			if textBox and textBox:IsFocused() and _isMobile then textBox:ReleaseFocus(false) end
+			GuiService.SelectedObject=nil
+		end)
+	end)
+end
+
+-- ══ WRITE AND SUBMIT ════════════════════════════════════════════
+local function writeAndSubmit(code)
+	code=formatCode(code)
+	if code=="" then return false end
+	local mode = (_G.RedeemMode or "ULTRA"):upper()
+	if mode == "DIGITPLUS" then
+		digitPlus_receiveWord(code, _G._dpContext or "code")
+		return true
+	end
+	copyCode(code)
+	if _G.SubmitEachEnabled then
+		local box=findCodeTextBox()
+		if not box then setStatus("⚠ NO BOX","Open redeem UI","err") return false end
+		table.insert(collectedCodes,code)
+		local fullText=table.concat(collectedCodes,"")
+		safeTypeIntoBox(box,fullText,false)
+		updateCounters()
+		if pushActivity then pushActivity("Typed "..fullText,Theme.Cyan) end
+		if _G.AutoSubmitEnabled then
+			pcall(function() box.Text=fullText end)
+			fireBoxFocusLost(box)
+			fireSubmitButton(box)
+			redeemViaRF(fullText)
+			pcall(function() if box:IsFocused() then box:ReleaseFocus(false) end GuiService.SelectedObject=nil end)
+			setStatus("✓ SUCCESS","Sent "..fullText,"ok")
+			if pushActivity then pushActivity("Sent "..fullText,Theme.Green) end
+			task.delay(0.8,function() setStatus("● ONLINE","Each mode active","ok") end)
+		else
+			setStatus("● READY","Submit OFF","wait")
+		end
+		return true
+	end
+	if _G.AutoSubmitEnabled and (tonumber(_G.SubmitAfterCount) or 1)<=1 then
+		if redeemViaRF(code) then
+			setStatus("✓ SUCCESS","Redeemed "..code,"ok")
+			if pushActivity then pushActivity("Redeemed "..code,Theme.Green) end
+			return true
+		end
+	end
+	local textBox=findCodeTextBox()
+	if not textBox then setStatus("⚠ NO BOX","Open redeem UI","err") return false end
+	if not collectedSeen[code] then
+		collectedSeen[code]=true
+		table.insert(collectedCodes,code)
+	end
+	local target=math.max(1,math.floor(tonumber(_G.SubmitAfterCount) or 1))
+	local fullText=table.concat(collectedCodes,"")
+	local ready=#collectedCodes>=target
+	safeTypeIntoBox(textBox,fullText,not ready)
+	updateCounters()
+	if pushActivity then pushActivity("Typed "..code,Theme.Cyan) end
+	if ready and _G.AutoSubmitEnabled and not _isMobile then
+		setStatus("● SUBMIT",fullText,"wait")
+		local attempts=math.clamp(tonumber(_G.SubmitAttempts) or 3,1,6)
+		local cam=workspace.CurrentCamera
+		local savedCF,savedFOV
+		pcall(function() if cam then savedCF,savedFOV=cam.CFrame,cam.FieldOfView end end)
+		for _=1,attempts do
+			pcall(function() textBox.Text=fullText end)
+			task.wait(0.1)
+			fireSubmitButton(textBox)
+			task.wait(0.05)
+			break
+		end
+		redeemViaRF(fullText)
+		restoreCamera(savedCF,savedFOV)
+		setStatus("✓ SUCCESS","Submitted","ok")
+		if pushActivity then pushActivity("Submitted",Theme.Green) end
+		table.clear(collectedCodes)
+		table.clear(collectedSeen)
+		batchGot=0
+		updateCounters()
+		task.delay(0.8,function() setStatus("● ONLINE","Waiting for trigger","ok") end)
+	elseif ready then
+		setStatus("● READY","Submit OFF","wait")
+	else
+		setStatus("● ONLINE","Typed "..code,"ok")
+	end
+	return true
+end
+
+-- ══ QUEUE / INPUT ════════════════════════════════════════════════
+local function triggerWrite()
+	if writeBusy or not _G.AutoWriteEnabled or #pendingQueue==0 then return end
+	writeBusy=true
+	task.spawn(function()
+		while _G.AutoWriteEnabled and #pendingQueue>0 do
+			local code=table.remove(pendingQueue,1)
+			if code then
+				pendingSeen[code]=nil
+				writeAndSubmit(code)
+				task.wait(0.04)
+			end
+		end
+		writeBusy=false
+	end)
+end
+
+local function queueCode(code,reason)
+	code=formatCode(code)
+	if isGameFeedback(code) then return false end
+	if code=="" or not code:match("^[%w%-%_]+$") then return false end
+	if pendingSeen[code] or collectedSeen[code] then return false end
+	if tick()-lastQueuedAt<0.005 then return false end
+	lastQueuedAt=tick()
+	pendingSeen[code]=true
+	batchGot+=1
+	table.insert(pendingQueue,code)
+	copyCode(code)
+	if pushActivity then pushActivity((reason or "Q").." "..code,Theme.Cyan) end
+	updateCounters()
+	if _G.AutoWriteEnabled then triggerWrite() end
+	return true
+end
+
+local function stripRich(s) return tostring(s or ""):gsub("<[^>]->","") end
+local function normalize(s)
+	s=stripRich(s):lower()
+	s=s:gsub("^%s+",""):gsub("[%s%p]+$",""):gsub("…+$",""):gsub("%s+$","")
+	return s
+end
+local function detectTrigger(message)
+	local n = normalize(message)
+	if n == "the riddle is" or n:find("the riddle is", 1, true)
+		or n == "riddle is" or n:find("riddle is", 1, true) then
+		return "riddle"
+	end
+	if n == "the code is" or n:find("the code is", 1, true)
+		or n == "code is" or n:find("code is", 1, true) then
+		return "code"
+	end
+	if n == "use code" or n:find("use code", 1, true) then return "code" end
+	if n == "the answer is" or n:find("the answer is", 1, true)
+		or n == "answer is" or n:find("answer is", 1, true) then
+		return "riddle"
+	end
+	if n == "riddle" then return "riddle" end
+	if n == "code" then return "code" end
+	return nil
+end
+
+local function isArmed() return captureMode~=nil and tick()<captureUntil end
+local function armCapture(mode,src)
+	captureMode=mode
+	captureUntil=tick()+15
+	armRoot=src and rootGui(src) or nil
+	table.clear(bufferedParts)
+	setStatus("● ARMED",mode:upper().." — waiting…","arm")
+	if pushActivity then pushActivity("Armed: "..mode,Theme.Amber) end
+end
+local function clearArm()
+	captureMode=nil
+	captureUntil=0
+	armRoot=nil
+	table.clear(bufferedParts)
+end
+
+local function resetInput()
+	table.clear(pendingQueue)
+	table.clear(pendingSeen)
+	table.clear(collectedCodes)
+	table.clear(collectedSeen)
+	batchGot=0
+	clearArm()
+	writeBusy=false
+	digitPlus_reset()
+	waitWindowActive  = false
+	waitWindowExpires = 0
+	updateCounters()
+	setStatus("● RESET","Queue + collected + DIGIT+ cleared","wait")
+	if pushActivity then pushActivity("Input reset",Theme.Amber) end
+end
+
+local function processArmedPayload(raw)
+	if not isArmed() then return false end
+	raw=stripRich(raw)
+	local mode=captureMode
+	if mode=="riddle" then
+		if not _G.RiddleSolverEnabled then return true end
+		local ans=solveRiddle(raw)
+		if ans then
+			_G._dpContext = "riddle"
+			if _G.SubmitEachEnabled then
+				if pushActivity then pushActivity("Riddle → "..ans,Theme.Violet) end
+				if _G.AutoWriteEnabled then queueCode(ans,"Riddle")
+				else task.spawn(writeAndSubmit,ans) end
+				captureUntil=tick()+15
+				setStatus("● ARMED","Each mode — next riddle…","arm")
+				return true
+			end
+			clearArm()
+			setStatus("✓ RIDDLE",ans,"ok")
+			if pushActivity then pushActivity("Riddle → "..ans,Theme.Violet) end
+			if _G.AutoWriteEnabled then
+				queueCode(ans,"Riddle")
+			else
+				local box=findCodeTextBox()
+				if box then
+					safeTypeIntoBox(box,ans)
+					if _G.AutoSubmitEnabled then
+						task.wait(0.03)
+						fireBoxFocusLost(box)
+						fireSubmitButton(box)
+						redeemViaRF(ans)
+						pcall(function() if box:IsFocused() then box:ReleaseFocus(false) end GuiService.SelectedObject=nil end)
+					end
+				end
+			end
+			return true
+		end
+		return true
+	end
+	if mode=="code" then
+		_G._dpContext = "code"
+		if not _G.AutoWriteEnabled then return true end
+		if _G.SubmitEachEnabled then
+			local piece=(raw:gsub("%s+",""):gsub("[^%w%-%_]",""))
+			if piece~="" then queueCode(piece,"Each") batchGot=0 end
+			captureUntil=tick()+15
+			setStatus("● ARMED","Each mode — next…","arm")
+			return true
+		end
+		local codes=extractCodesFromText(raw)
+		if #codes>0 then
+			for _,c in ipairs(codes) do queueCode(c,"Code") end
+			local target=math.max(1,math.floor(tonumber(_G.SubmitAfterCount) or 1))
+			if batchGot<target then
+				captureUntil=tick()+15
+				setStatus("● ARMED",batchGot.." / "..target.." — next code…","arm")
+			else clearArm() end
+			return true
+		end
+		local cleaned=raw:gsub("%s+","")
+		if cleaned~="" then table.insert(bufferedParts,cleaned) end
+		local threshold=math.max(1,math.floor(tonumber(_G.SubmitAfterCount) or 1))
+		local joined=table.concat(bufferedParts,"")
+		local joinedCodes=extractCodesFromText(joined)
+		if #joinedCodes>0 or #bufferedParts>=threshold then
+			clearArm()
+			local completed=(#joinedCodes>0 and joinedCodes[1]) or formatCode(joined)
+			if completed~="" then queueCode(completed,"Code") end
+			return true
+		end
+		if pushActivity then pushActivity("Buffer "..#bufferedParts.."/"..threshold,Theme.Muted) end
+		return true
+	end
+	return false
+end
+
+local function processText(text, srcObj)
+	if not text or text == "" then return end
+	text = stripRich(text)
+	if isWaitSpam(text) then
+		activateWaitWindow()
+		clearArm()
+		table.clear(pendingQueue)
+		table.clear(pendingSeen)
+		return
+	end
+	if isInWaitWindow() then
+		if pushActivity then
+			pushActivity("Blocked (wait): " .. text:sub(1,30), Theme.ToggleOff)
+		end
+		return
+	end
+	local trig = detectTrigger(text)
+	if trig then
+		if trig == "riddle" then
+			if pushActivity then pushActivity("Riddle incoming", Theme.Violet) end
+			setStatus("● NOTICE", "Riddle incoming…", "arm")
+			if _G.RiddleSolverEnabled or _G.AutoWriteEnabled then armCapture("riddle", srcObj) end
+		elseif trig == "code" then
+			if pushActivity then pushActivity("Code incoming", Theme.Amber) end
+			setStatus("● NOTICE", "Code incoming…", "arm")
+			if _G.AutoWriteEnabled then armCapture("code", srcObj) end
+		end
+		return
+	end
+	if isArmed() then
+		if not sameSource(srcObj) then return end
+		processArmedPayload(text)
+	end
+end
+
+local targetUserId=nil
+task.spawn(function()
+	local ok,id=pcall(function() return Players:GetUserIdFromNameAsync("SpyderSammy") end)
+	if ok then targetUserId=id end
+end)
+
+local _sammyCache={}
+local ANNOUNCE_KEYS={"sammy","spydersammy","announcement","announce","notify","notification","codeevent","broadcast","message","tip","live"}
+local function verifySourceIsSammy(textObj)
+	if not textObj or not textObj.Parent then return false end
+	if ScreenGui and textObj:IsDescendantOf(ScreenGui) then return false end
+	local container=textObj.Parent
+	local depth=0
+	while container and depth<12 do
+		if container:IsA("ScreenGui") or container.Name=="PlayerGui" then break end
+		if _sammyCache[container]~=nil then return _sammyCache[container] end
+		local cname=string.lower(container.Name or "")
+		for _,k in ipairs(ANNOUNCE_KEYS) do
+			if cname:find(k,1,true) then _sammyCache[container]=true return true end
+		end
+		for _,item in ipairs(container:GetChildren()) do
+			if item:IsA("TextLabel") or item:IsA("TextButton") then
+				local t=string.lower(item.Text or "")
+				if t:find("spydersammy",1,true) or t:find("sammy",1,true) then
+					_sammyCache[container]=true return true
+				end
+			elseif (item:IsA("ImageLabel") or item:IsA("ImageButton")) and item.Visible and item.Image~="" then
+				if targetUserId and string.find(string.lower(item.Image),tostring(targetUserId),1,true) then
+					_sammyCache[container]=true return true
+				end
+			end
+		end
+		container=container.Parent
+		depth+=1
+	end
+	return false
+end
+
+local function handleIncomingText(textObj)
+	if not _G.ScriptEnabled then return end
+	if not textObj or not textObj.Parent then return end
+	local text=textObj.Text
+	if not text or text=="" or #text>300 then return end
+	if isGameFeedback(text) then return end
+	if isUiNoise(text) then return end
+	if ScreenGui and textObj:IsDescendantOf(ScreenGui) then return end
+	if _G.SammyFilterEnabled and not fromTop(textObj) then return end
+	local clean=stripRich(text)
+	local isTrig=detectTrigger(clean)~=nil
+	if isTrig then
+		local ok=isGuiVisible(textObj)
+		if _G.SammyFilterEnabled and not ok then return end
+	elseif isArmed() then
+		if not sameSource(textObj) then return end
+	else return end
+	local now=tick()
+	if text~=lastSammyText or (now-lastSammyAt)>0.35 then
+		lastSammyText=text
+		lastSammyAt=now
+	end
+	processText(text,textObj)
+end
+
+local hooked=setmetatable({},{__mode="k"})
+local function hookUiTextObject(obj)
+	if not (obj:IsA("TextLabel") or obj:IsA("TextButton")) then return end
+	if ScreenGui and obj:IsDescendantOf(ScreenGui) then return end
+	if hooked[obj] then return end
+	if _G.SammyFilterEnabled and not fromTop(obj) then return end
+	hooked[obj]=true
+	task.defer(function() if obj.Parent then handleIncomingText(obj) end end)
+	obj:GetPropertyChangedSignal("Text"):Connect(function() handleIncomingText(obj) end)
+end
+
+local function startPlayerGuiScanner()
+	local pg=LP:FindFirstChild("PlayerGui") or LP:WaitForChild("PlayerGui",10)
+	if not pg then return end
+	task.spawn(function()
+		local n=0
+		for _,d in ipairs(pg:GetDescendants()) do
+			hookUiTextObject(d)
+			n+=1
+			if n%120==0 then task.wait() end
+		end
+	end)
+	pg.DescendantAdded:Connect(function(obj)
+		if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+			hookUiTextObject(obj)
+		elseif obj:IsA("TextBox") and _isCodeBox(obj) then
+			_cachedBox=obj
+			triggerWrite()
+		end
+	end)
+end
+
+-- ══ WEBHOOK ═════════════════════════════════════════════════════
+local WEBHOOK_URL = ""
+local httpRequest  = (syn and syn.request) or (http and http.request) or http_request or request
+
+local function sendWebhook(spawnedName)
+	if not httpRequest or type(WEBHOOK_URL) ~= "string"
+		or WEBHOOK_URL == "" or not WEBHOOK_URL:find("^https://discord%.com/api/webhooks/") then
+		return
+	end
+	spawnedName = tostring(spawnedName or "Unknown"):gsub("@", "@\\u{200B}")
+	local displayName = LP and LP.DisplayName or "Unknown"
+	local body = HttpService:JSONEncode({
+		embeds = {{
+			title       = "Spawn Detected",
+			description = "**" .. spawnedName .. "** spawned!\nPlayer: **" .. displayName .. "**",
+			color       = 0x3B82F6,
+		}}
+	})
+	pcall(function()
+		httpRequest({
+			Url     = WEBHOOK_URL,
+			Method  = "POST",
+			Headers = { ["Content-Type"] = "application/json" },
+			Body    = body,
+		})
+	end)
+end
+
+local seenSpawnLabels = setmetatable({}, { __mode = "k" })
+local function checkSpawnLabel(obj)
+	if not obj or not obj:IsA("TextLabel") then return nil end
+	local txt = obj.Text
+	if type(txt) ~= "string" then return nil end
+	local plain = txt:gsub("<[^>]+>", ""):gsub("^%s+", ""):gsub("%s+$", "")
+	local name = plain:match("^(.-)%s+spawned!%s*$")
+	if name and name ~= "" then
+		if seenSpawnLabels[obj] ~= name then
+			seenSpawnLabels[obj] = name
+			return name
+		end
+	end
+	return nil
+end
+
+task.spawn(function()
+	local pg = LP:FindFirstChildOfClass("PlayerGui") or LP:WaitForChild("PlayerGui", 10)
+	if not pg then return end
+	local ok, folder = pcall(function()
+		local notifRoot = pg:WaitForChild("Notification", 10)
+		return notifRoot:WaitForChild("Notification", 10)
+	end)
+	if not ok or not folder then
+		warn("[KIWI] Spawn watcher: Notification folder not found")
+		return
+	end
+	local function handleSpawnLabel(obj)
+		local name = checkSpawnLabel(obj)
+		if not name then return end
+		sendWebhook(name)
+		task.spawn(function()
+			for _ = 1, 30 do
+				if type(pushActivity) == "function" then
+					pushActivity("⚡ " .. name .. " spawned!", Color3.fromRGB(110, 230, 150))
+					return
+				end
+				task.wait(0.25)
+			end
+		end)
+	end
+	for _, obj in ipairs(folder:GetChildren()) do handleSpawnLabel(obj) end
+	folder.ChildAdded:Connect(function(obj)
+		task.spawn(function()
+			task.wait()
+			handleSpawnLabel(obj)
+			if obj:IsA("TextLabel") then
+				obj:GetPropertyChangedSignal("Text"):Connect(function()
+					handleSpawnLabel(obj)
+				end)
+			end
+		end)
+	end)
+end)
+
+local BUY_KW={"buy","purchase","claim","steal","take","get","collect"}
+local function isBuyPrompt(p)
+	local t=string.lower(tostring(p.ActionText or "").." "..tostring(p.ObjectText or "").." "..p.Name)
+	if t:find("craft",1,true) or t:find("sell",1,true) then return false end
+	for _,k in ipairs(BUY_KW) do if t:find(k,1,true) then return true end end
+	return false
+end
+local function wpos(inst)
+	local c=inst
+	for _=1,12 do
+		if not c then break end
+		if c:IsA("BasePart") then return c.Position end
+		if c:IsA("Attachment") and c.Parent and c.Parent:IsA("BasePart") then return c.Parent.Position end
+		c=c.Parent
+	end
+end
+local _promptCache={}
+for _,v in ipairs(workspace:GetDescendants()) do
+	if v:IsA("ProximityPrompt") then _promptCache[v]=true end
+end
+workspace.DescendantAdded:Connect(function(v) if v:IsA("ProximityPrompt") then _promptCache[v]=true end end)
+workspace.DescendantRemoving:Connect(function(v) _promptCache[v]=nil end)
+task.spawn(function()
+	while task.wait(0.4) do
+		if _G.AutoBuyEnabled then
+			local hrp=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local hpos=hrp.Position
+				for v in pairs(_promptCache) do
+					if not v.Parent then _promptCache[v]=nil
+					elseif v.Enabled and isBuyPrompt(v) then
+						local pos=wpos(v)
+						if pos and (hpos-pos).Magnitude<=10 then
+							pcall(function()
+								v.HoldDuration=0
+								if fireproximityprompt then fireproximityprompt(v)
+								else v:InputHoldBegin() task.wait(0.02) v:InputHoldEnd() end
+							end)
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+local _lastAnchor=nil
+task.spawn(function()
+	while task.wait(0.3) do
+		local a=_G.AnchorEnabled==true
+		if a~=_lastAnchor then
+			_lastAnchor=a
+			local hrp=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then hrp.Anchored=a end
+		end
+	end
+end)
+LP.CharacterAdded:Connect(function(char)
+	task.wait(0.1)
+	if _G.AnchorEnabled then
+		local hrp=char:FindFirstChild("HumanoidRootPart")
+		if hrp then hrp.Anchored=true end
+	end
+end)
+
+-- ══ GUI ═════════════════════════════════════════════════════════
+pcall(function()
+	for _,n in ipairs({"K2CodeSniperUI","K2CodeSniperV2","KiwiSniperUI","KiwiSniperV2"}) do
+		local p=game.CoreGui:FindFirstChild(n) or LP.PlayerGui:FindFirstChild(n)
+		if p then p:Destroy() end
+	end
+end)
+
+ScreenGui=Instance.new("ScreenGui")
+ScreenGui.Name="KiwiSniperV2"
+ScreenGui.ResetOnSpawn=false
+ScreenGui.IgnoreGuiInset=true
+ScreenGui.DisplayOrder=1000
+ScreenGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+local parented=false
+pcall(function()
+	ScreenGui.Parent=game:GetService("CoreGui")
+	parented=ScreenGui.Parent~=nil
+end)
+if not parented then ScreenGui.Parent=LP:WaitForChild("PlayerGui") end
+getgenv().KiwiSniperGui=ScreenGui
+getgenv().K2CodeSniperGui=ScreenGui
+
+local PANEL_W,PANEL_H=292,490
+local HEADER_H,NAV_H=48,36
+
+MainFrame=Instance.new("Frame")
+MainFrame.Name="Main"
+MainFrame.AnchorPoint=Vector2.new(0.5,0)
+MainFrame.Position=UDim2.new(0.5,0,0,60)
+MainFrame.Size=UDim2.fromOffset(PANEL_W,PANEL_H)
+MainFrame.BackgroundColor3=Theme.Panel
+MainFrame.BackgroundTransparency=0.04
+MainFrame.BorderSizePixel=0
+MainFrame.ClipsDescendants=true
+MainFrame.Visible=true
+MainFrame.ZIndex=10
+MainFrame.Parent=ScreenGui
+corner(MainFrame,20)
+local b1=stroke(MainFrame,Theme.Cyan,1.5,0.35)
+local g1=Instance.new("UIGradient")
+g1.Color=ColorSequence.new({
+	ColorSequenceKeypoint.new(0,Theme.Cyan),
+	ColorSequenceKeypoint.new(0.5,Theme.Violet),
+	ColorSequenceKeypoint.new(1,Theme.Teal),
+})
+g1.Parent=b1
+
+_G.UiScalePct=UIS.TouchEnabled and 60 or 100
+local uiScale=Instance.new("UIScale")
+uiScale.Scale=_G.UiScalePct/100
+uiScale.Parent=MainFrame
+local orbScale
+local function applyScale()
+	local s=(_G.UiScalePct or 100)/100
+	uiScale.Scale=s
+	if orbScale then orbScale.Scale=s end
+end
+
+do
+	local shell=Instance.new("Frame")
+	shell.Name="ShellPattern"
+	shell.Size=UDim2.fromScale(1,1)
+	shell.BackgroundTransparency=1
+	shell.ZIndex=10
+	shell.Parent=MainFrame
+	local S,gapX,stepY=32,70,35
+	for row=0,14 do
+		for col=0,4 do
+			local d=Instance.new("Frame")
+			d.Size=UDim2.fromOffset(S,S)
+			d.AnchorPoint=Vector2.new(0.5,0.5)
+			d.Position=UDim2.fromOffset(col*gapX+(row%2)*(gapX/2),row*stepY+10)
+			d.Rotation=45
+			d.BackgroundColor3=Theme.Teal
+			d.BackgroundTransparency=0.94
+			d.BorderSizePixel=0
+			d.ZIndex=10
+			d.Parent=shell
+			corner(d,7)
+		end
+	end
+end
+
+local Header=Instance.new("Frame")
+Header.Size=UDim2.new(1,0,0,HEADER_H)
+Header.BackgroundTransparency=1
+Header.ZIndex=11
+Header.Parent=MainFrame
+
+local Logo=Instance.new("Frame")
+Logo.Size=UDim2.fromOffset(32,32)
+Logo.Position=UDim2.new(0,10,0,8)
+Logo.BackgroundColor3=Theme.Teal
+Logo.BorderSizePixel=0
+Logo.ZIndex=12
+Logo.Parent=Header
+corner(Logo,16)
+stroke(Logo,Theme.Cyan,1.5,0.15)
+local lg=Instance.new("UIGradient")
+lg.Color=ColorSequence.new(Theme.Cyan,Theme.Teal)
+lg.Rotation=45
+lg.Parent=Logo
+local LogoTxt=Instance.new("TextLabel")
+LogoTxt.Size=UDim2.fromScale(1,1)
+LogoTxt.BackgroundTransparency=1
+LogoTxt.Text="🐢"
+LogoTxt.TextSize=18
+LogoTxt.ZIndex=13
+LogoTxt.Parent=Logo
+
+local Title=Instance.new("TextLabel")
+Title.BackgroundTransparency=1
+Title.Position=UDim2.new(0,52,0,6)
+Title.Size=UDim2.new(1,-112,0,20)
+Title.Font=FT
+Title.Text="KIWI SNIPER"
+Title.TextSize=16
+Title.TextColor3=Theme.Text
+Title.TextXAlignment=Enum.TextXAlignment.Left
+Title.ZIndex=12
+Title.Parent=Header
+
+local Subtitle=Instance.new("TextLabel")
+Subtitle.BackgroundTransparency=1
+Subtitle.Position=UDim2.new(0,52,0,27)
+Subtitle.Size=UDim2.new(1,-112,0,14)
+Subtitle.Font=FM
+Subtitle.Text="ANIMALS + DIGIT+ UNDETECTED + WAIT FILTER"
+Subtitle.TextSize=10
+Subtitle.TextColor3=Theme.Cyan
+Subtitle.TextXAlignment=Enum.TextXAlignment.Left
+Subtitle.ZIndex=12
+Subtitle.Parent=Header
+
+local function winBtn(x,sym)
+	local b=Instance.new("TextButton")
+	b.Size=UDim2.fromOffset(22,22)
+	b.Position=UDim2.new(1,x,0,13)
+	b.BackgroundColor3=Theme.PanelSoft
+	b.BackgroundTransparency=0.1
+	b.Text=sym
+	b.Font=FT
+	b.TextSize=15
+	b.TextColor3=Theme.Text
+	b.AutoButtonColor=false
+	b.ZIndex=13
+	b.Parent=Header
+	corner(b,11)
+	return b
+end
+local MinBtn=winBtn(-54,"–")
+local CloseBtn=winBtn(-28,"×")
+MinBtn.MouseEnter:Connect(function() TS:Create(MinBtn,TIS,{BackgroundColor3=Theme.Cyan,TextColor3=Theme.Void}):Play() end)
+MinBtn.MouseLeave:Connect(function() TS:Create(MinBtn,TIS,{BackgroundColor3=Theme.PanelSoft,TextColor3=Theme.Text}):Play() end)
+CloseBtn.MouseEnter:Connect(function() TS:Create(CloseBtn,TIS,{BackgroundColor3=Theme.Red,TextColor3=Theme.Text}):Play() end)
+CloseBtn.MouseLeave:Connect(function() TS:Create(CloseBtn,TIS,{BackgroundColor3=Theme.PanelSoft,TextColor3=Theme.Text}):Play() end)
+CloseBtn.MouseButton1Click:Connect(function()
+	TS:Create(MainFrame,TIQ,{BackgroundTransparency=1}):Play()
+	task.wait(0.25)
+	ScreenGui:Destroy()
+	getgenv().KiwiSniperV2=nil
+	getgenv().K2CodeSniperV2=nil
+end)
+
+local Divider=Instance.new("Frame")
+Divider.Size=UDim2.new(1,-24,0,1)
+Divider.Position=UDim2.new(0,12,0,HEADER_H)
+Divider.BackgroundColor3=Theme.Cyan
+Divider.BackgroundTransparency=0.75
+Divider.BorderSizePixel=0
+Divider.ZIndex=11
+Divider.Parent=MainFrame
+
+local Content=Instance.new("Frame")
+Content.Size=UDim2.new(1,0,1,-(HEADER_H+2+NAV_H+12))
+Content.Position=UDim2.new(0,0,0,HEADER_H+2)
+Content.BackgroundTransparency=1
+Content.ZIndex=11
+Content.Parent=MainFrame
+
+local function newPage(canvasH,visible)
+	local p=Instance.new("ScrollingFrame")
+	p.Size=UDim2.fromScale(1,1)
+	p.BackgroundTransparency=1
+	p.BorderSizePixel=0
+	p.ScrollBarThickness=3
+	p.ScrollBarImageColor3=Theme.Cyan
+	p.ScrollingDirection=Enum.ScrollingDirection.Y
+	p.Active=true
+	p.CanvasSize=UDim2.new(0,0,0,canvasH)
+	p.Visible=visible
+	p.ZIndex=11
+	p.Parent=Content
+	return p
+end
+local PageMain=newPage(500,true)
+local PageSettings=newPage(460,false)
+
+local StatusCard=Instance.new("Frame")
+StatusCard.Size=UDim2.new(1,-20,0,92)
+StatusCard.Position=UDim2.new(0,10,0,4)
+StatusCard.BackgroundColor3=Theme.Card
+StatusCard.BackgroundTransparency=0.1
+StatusCard.BorderSizePixel=0
+StatusCard.ZIndex=12
+StatusCard.Parent=PageMain
+corner(StatusCard,14)
+stroke(StatusCard,Theme.Cyan,1,0.5)
+
+StatusDot=Instance.new("Frame")
+StatusDot.Size=UDim2.fromOffset(9,9)
+StatusDot.Position=UDim2.new(0,12,0,11)
+StatusDot.BackgroundColor3=Theme.Cyan
+StatusDot.BorderSizePixel=0
+StatusDot.ZIndex=13
+StatusDot.Parent=StatusCard
+corner(StatusDot,5)
+
+StatusTitle=Instance.new("TextLabel")
+StatusTitle.BackgroundTransparency=1
+StatusTitle.Position=UDim2.new(0,28,0,6)
+StatusTitle.Size=UDim2.new(1,-40,0,18)
+StatusTitle.Font=FT
+StatusTitle.Text="ONLINE"
+StatusTitle.TextSize=14
+StatusTitle.TextColor3=Theme.Text
+StatusTitle.TextXAlignment=Enum.TextXAlignment.Left
+StatusTitle.ZIndex=13
+StatusTitle.Parent=StatusCard
+
+StatusSub=Instance.new("TextLabel")
+StatusSub.BackgroundTransparency=1
+StatusSub.Position=UDim2.new(0,12,0,26)
+StatusSub.Size=UDim2.new(1,-24,0,16)
+StatusSub.Font=FM
+StatusSub.Text="Waiting for trigger"
+StatusSub.TextSize=11
+StatusSub.TextColor3=Theme.Muted
+StatusSub.TextXAlignment=Enum.TextXAlignment.Left
+StatusSub.TextTruncate=Enum.TextTruncate.AtEnd
+StatusSub.ZIndex=13
+StatusSub.Parent=StatusCard
+
+local function metric(x,label)
+	local l=Instance.new("TextLabel")
+	l.BackgroundTransparency=1
+	l.Position=UDim2.new(x,0,0,46)
+	l.Size=UDim2.new(0.45,0,0,12)
+	l.Font=FM
+	l.Text=label
+	l.TextSize=10
+	l.TextColor3=Theme.Muted
+	l.TextXAlignment=Enum.TextXAlignment.Left
+	l.ZIndex=13
+	l.Parent=StatusCard
+	local v=Instance.new("TextLabel")
+	v.BackgroundTransparency=1
+	v.Position=UDim2.new(x,0,0,57)
+	v.Size=UDim2.new(0.45,0,0,20)
+	v.Font=FT
+	v.Text="0"
+	v.TextSize=17
+	v.TextColor3=Theme.Cyan
+	v.TextXAlignment=Enum.TextXAlignment.Left
+	v.ZIndex=13
+	v.Parent=StatusCard
+	return v
+end
+QueueLabel=metric(0.045,"QUEUE")
+CollectedLabel=metric(0.52,"COLLECTED")
+CollectedLabel.Text="0 / 1"
+
+local ShellBar=Instance.new("Frame")
+ShellBar.Position=UDim2.new(0,12,0,81)
+ShellBar.Size=UDim2.new(1,-24,0,7)
+ShellBar.BackgroundTransparency=1
+ShellBar.ZIndex=13
+ShellBar.Parent=StatusCard
+
+local function refreshShell()
+	local target=math.clamp(math.floor(tonumber(_G.SubmitAfterCount) or 1),1,20)
+	local got=math.min(#collectedCodes,target)
+	for _,c in ipairs(ShellBar:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+	local gap=3
+	for i=1,target do
+		local seg=Instance.new("Frame")
+		seg.Size=UDim2.new(1/target,-gap,1,0)
+		seg.Position=UDim2.new((i-1)/target,gap/2,0,0)
+		seg.BackgroundColor3=i<=got and Theme.Cyan or Theme.ToggleOff
+		seg.BackgroundTransparency=i<=got and 0 or 0.3
+		seg.BorderSizePixel=0
+		seg.ZIndex=14
+		seg.Parent=ShellBar
+		corner(seg,4)
+	end
+end
+
+local baseUpdateCounters=updateCounters
+updateCounters=function()
+	baseUpdateCounters()
+	refreshShell()
+end
+
+if #newBrainrots > 0 then
+	local newCard=Instance.new("Frame")
+	newCard.Size=UDim2.new(1,-20,0,54)
+	newCard.Position=UDim2.new(0,10,0,100)
+	newCard.BackgroundColor3=Color3.fromRGB(14,46,28)
+	newCard.BorderSizePixel=0
+	newCard.ZIndex=12
+	newCard.Parent=PageMain
+	corner(newCard,12)
+	stroke(newCard,Theme.Green,1.5,0.2)
+	local newIcon=Instance.new("TextLabel")
+	newIcon.BackgroundTransparency=1
+	newIcon.Position=UDim2.new(0,10,0,6)
+	newIcon.Size=UDim2.new(0,20,0,18)
+	newIcon.Font=FT
+	newIcon.Text="🆕"
+	newIcon.TextSize=14
+	newIcon.ZIndex=13
+	newIcon.Parent=newCard
+	local newTitle=Instance.new("TextLabel")
+	newTitle.BackgroundTransparency=1
+	newTitle.Position=UDim2.new(0,34,0,5)
+	newTitle.Size=UDim2.new(1,-44,0,16)
+	newTitle.Font=FT
+	newTitle.Text=#newBrainrots.." NEW BRAINROT"..(#newBrainrots>1 and "S" or "").." DETECTED"
+	newTitle.TextSize=11
+	newTitle.TextColor3=Theme.Green
+	newTitle.TextXAlignment=Enum.TextXAlignment.Left
+	newTitle.ZIndex=13
+	newTitle.Parent=newCard
+	local newSub=Instance.new("TextLabel")
+	newSub.BackgroundTransparency=1
+	newSub.Position=UDim2.new(0,34,0,22)
+	newSub.Size=UDim2.new(1,-44,0,14)
+	newSub.Font=FM
+	newSub.TextSize=10
+	newSub.TextColor3=Theme.Muted
+	newSub.TextXAlignment=Enum.TextXAlignment.Left
+	newSub.TextTruncate=Enum.TextTruncate.AtEnd
+	newSub.ZIndex=13
+	newSub.Parent=newCard
+	local names={}
+	for _,e in ipairs(newBrainrots) do table.insert(names,e.display) end
+	newSub.Text=table.concat(names,", ")
+	local newGen=Instance.new("TextLabel")
+	newGen.BackgroundTransparency=1
+	newGen.Position=UDim2.new(0,34,0,36)
+	newGen.Size=UDim2.new(1,-44,0,13)
+	newGen.Font=FM
+	newGen.TextSize=9
+	newGen.TextColor3=Theme.Cyan
+	newGen.TextXAlignment=Enum.TextXAlignment.Left
+	newGen.ZIndex=13
+	newGen.Parent=newCard
+	if newestBrainrot then
+		newGen.Text=newestBrainrot.rarity.." · "..fmtNum(newestBrainrot.gen).."/s · "..fmtNum(newestBrainrot.price)
+	end
+end
+
+local aioY = #newBrainrots > 0 and 162 or 104
+
+local AIO_IDLE  = Color3.fromRGB(14,56,34)
+local AIO_ON    = Color3.fromRGB(22,110,60)
+local AIO_HOVER = Color3.fromRGB(28,136,72)
+local aioEnabled=false
+
+local aioCard=Instance.new("Frame")
+aioCard.Name="AIOCard"
+aioCard.Size=UDim2.new(1,-20,0,72)
+aioCard.Position=UDim2.new(0,10,0,aioY)
+aioCard.BackgroundColor3=AIO_IDLE
+aioCard.BorderSizePixel=0
+aioCard.ZIndex=12
+aioCard.Parent=PageMain
+corner(aioCard,14)
+local aioStroke=stroke(aioCard,Theme.Cyan,1.5,0.55)
+
+local aioIcon=Instance.new("TextLabel")
+aioIcon.BackgroundTransparency=1
+aioIcon.Position=UDim2.new(0,12,0,8)
+aioIcon.Size=UDim2.new(0,24,0,22)
+aioIcon.Font=FT
+aioIcon.Text="🚀"
+aioIcon.TextSize=18
+aioIcon.ZIndex=13
+aioIcon.Parent=aioCard
+
+local aioTitle=Instance.new("TextLabel")
+aioTitle.BackgroundTransparency=1
+aioTitle.Position=UDim2.new(0,40,0,8)
+aioTitle.Size=UDim2.new(1,-100,0,20)
+aioTitle.Font=FT
+aioTitle.Text="ALL-IN-ONE SNIPER"
+aioTitle.TextSize=13
+aioTitle.TextColor3=Theme.Text
+aioTitle.TextXAlignment=Enum.TextXAlignment.Left
+aioTitle.ZIndex=13
+aioTitle.Parent=aioCard
+
+local aioSub=Instance.new("TextLabel")
+aioSub.BackgroundTransparency=1
+aioSub.Position=UDim2.new(0,40,0,28)
+aioSub.Size=UDim2.new(1,-108,0,14)
+aioSub.Font=FB
+aioSub.Text="Animals Live + DB Externa + Riddle + Each + Wait Filter + Interrupt"
+aioSub.TextSize=9
+aioSub.TextColor3=Theme.Muted
+aioSub.TextXAlignment=Enum.TextXAlignment.Left
+aioSub.TextTruncate=Enum.TextTruncate.AtEnd
+aioSub.ZIndex=13
+aioSub.Parent=aioCard
+
+local aioTrack=Instance.new("Frame")
+aioTrack.Size=UDim2.fromOffset(44,24)
+aioTrack.Position=UDim2.new(1,-56,0,10)
+aioTrack.BackgroundColor3=Theme.ToggleOff
+aioTrack.BorderSizePixel=0
+aioTrack.ZIndex=13
+aioTrack.Parent=aioCard
+corner(aioTrack,12)
+
+local aioKnob=Instance.new("Frame")
+aioKnob.Size=UDim2.fromOffset(18,18)
+aioKnob.Position=UDim2.new(0,3,0.5,-9)
+aioKnob.BackgroundColor3=Theme.Text
+aioKnob.BorderSizePixel=0
+aioKnob.ZIndex=14
+aioKnob.Parent=aioTrack
+corner(aioKnob,9)
+
+local aioInfo=Instance.new("TextLabel")
+aioInfo.BackgroundTransparency=1
+aioInfo.Position=UDim2.new(0,12,0,50)
+aioInfo.Size=UDim2.new(1,-24,0,16)
+aioInfo.Font=FM
+aioInfo.TextSize=9
+aioInfo.TextColor3=Theme.Muted
+aioInfo.TextXAlignment=Enum.TextXAlignment.Left
+aioInfo.ZIndex=13
+aioInfo.Parent=aioCard
+
+refreshAioInfo=function()
+	local mode = (_G.RedeemMode or "ULTRA"):upper()
+	aioInfo.Text="Mode:"..mode.."  ·  After:"..tostring(_G.SubmitAfterCount).."  ·  Tries:"..tostring(_G.SubmitAttempts)
+end
+refreshAioInfo()
+
+local aioHit=Instance.new("TextButton")
+aioHit.Size=UDim2.fromScale(1,1)
+aioHit.BackgroundTransparency=1
+aioHit.Text=""
+aioHit.AutoButtonColor=false
+aioHit.ZIndex=15
+aioHit.Parent=aioCard
+
+local function setAIO(state)
+	aioEnabled=state
+	_G.AutoWriteEnabled=state
+	_G.AutoSubmitEnabled=state
+	_G.RiddleSolverEnabled=state
+	_G.SubmitEachEnabled=state
+	digitPlus.enabled = state and (_G.RedeemMode or "ULTRA"):upper() == "DIGITPLUS"
+	if not state then
+		table.clear(pendingQueue)
+		table.clear(pendingSeen)
+		table.clear(collectedCodes)
+		table.clear(collectedSeen)
+		batchGot=0
+		clearArm()
+		digitPlus_reset()
+	end
+	TS:Create(aioCard,TIS,{BackgroundColor3=state and AIO_ON or AIO_IDLE}):Play()
+	TS:Create(aioTrack,TIS,{BackgroundColor3=state and Theme.Cyan or Theme.ToggleOff}):Play()
+	TS:Create(aioKnob,TIB,{
+		Position=state and UDim2.new(1,-21,0.5,-9) or UDim2.new(0,3,0.5,-9),
+		BackgroundColor3=state and Theme.Void or Theme.Text,
+	}):Play()
+	TS:Create(aioStroke,TIS,{Transparency=state and 0.1 or 0.55}):Play()
+	refreshAioInfo()
+	updateCounters()
+	if pushActivity then pushActivity(state and "AIO SNIPER ON 🚀" or "AIO SNIPER OFF",state and Theme.Green or Theme.Amber) end
+	if state then setStatus("● ARMED","All systems go","arm")
+	else setStatus("● ONLINE","Waiting for trigger","ok") end
+end
+
+aioHit.MouseEnter:Connect(function() TS:Create(aioCard,TIS,{BackgroundColor3=aioEnabled and AIO_HOVER or Color3.fromRGB(20,76,46)}):Play() end)
+aioHit.MouseLeave:Connect(function() TS:Create(aioCard,TIS,{BackgroundColor3=aioEnabled and AIO_ON or AIO_IDLE}):Play() end)
+aioHit.MouseButton1Click:Connect(function() setAIO(not aioEnabled) end)
+
+local modeY = aioY + 80
+
+local modeCard=Instance.new("Frame")
+modeCard.Size=UDim2.new(1,-20,0,52)
+modeCard.Position=UDim2.new(0,10,0,modeY)
+modeCard.BackgroundColor3=Theme.Card
+modeCard.BackgroundTransparency=0.1
+modeCard.BorderSizePixel=0
+modeCard.ZIndex=12
+modeCard.Parent=PageMain
+corner(modeCard,12)
+local modeStroke=stroke(modeCard,Theme.Cyan,1,0.55)
+
+local modeLbl=Instance.new("TextLabel")
+modeLbl.BackgroundTransparency=1
+modeLbl.Position=UDim2.new(0,12,0,5)
+modeLbl.Size=UDim2.new(1,-24,0,14)
+modeLbl.Font=FT
+modeLbl.Text="REDEEM MODE"
+modeLbl.TextSize=11
+modeLbl.TextColor3=Theme.Text
+modeLbl.TextXAlignment=Enum.TextXAlignment.Left
+modeLbl.ZIndex=13
+modeLbl.Parent=modeCard
+
+local modeSubLbl=Instance.new("TextLabel")
+modeSubLbl.BackgroundTransparency=1
+modeSubLbl.Position=UDim2.new(0,12,0,18)
+modeSubLbl.Size=UDim2.new(1,-24,0,11)
+modeSubLbl.Font=FM
+modeSubLbl.TextSize=9
+modeSubLbl.TextColor3=Theme.Muted
+modeSubLbl.TextXAlignment=Enum.TextXAlignment.Left
+modeSubLbl.ZIndex=13
+modeSubLbl.Parent=modeCard
+
+local modeBtnList = {}
+local modeOptions = {
+	{"ULTRA",    "⚡ ULTRA"},
+	{"DIGITPLUS","⌨ DIGIT+"},
+}
+
+local function refreshModeSubLbl()
+	local m = (_G.RedeemMode or "ULTRA"):upper()
+	if m == "DIGITPLUS" then
+		modeSubLbl.Text = "Chunk typing · log-normal jitter · undetected"
+	else
+		modeSubLbl.Text = "Paste directo · sin acumular · más rápido"
+	end
+	refreshAioInfo()
+end
+
+local function selectRedeemMode(m)
+	_G.RedeemMode = m
+	if aioEnabled then
+		digitPlus.enabled = (m == "DIGITPLUS")
+	end
+	refreshModeSubLbl()
+	for _, pair in ipairs(modeBtnList) do
+		local id, btn = pair[1], pair[2]
+		local active = id == m
+		TS:Create(btn, TIS, {
+			BackgroundColor3 = active and Theme.Cyan  or Theme.ToggleOff,
+			TextColor3       = active and Theme.Void  or Theme.Muted,
+		}):Play()
+	end
+	if pushActivity then pushActivity("Mode → "..m, Theme.Violet) end
+end
+
+local bW2 = (1 - 0.06) / #modeOptions
+for i, pair in ipairs(modeOptions) do
+	local id, label = pair[1], pair[2]
+	local btn = Instance.new("TextButton")
+	btn.Size               = UDim2.new(bW2, -3, 0, 20)
+	btn.Position           = UDim2.new(0.03 + (i-1)*bW2, 1, 0, 30)
+	btn.BackgroundColor3   = Theme.ToggleOff
+	btn.AutoButtonColor    = false
+	btn.Font               = FT
+	btn.TextSize           = 9
+	btn.Text               = label
+	btn.TextColor3         = Theme.Muted
+	btn.BorderSizePixel    = 0
+	btn.ZIndex             = 14
+	btn.Parent             = modeCard
+	corner(btn, 6)
+	table.insert(modeBtnList, {id, btn})
+	btn.MouseButton1Click:Connect(function() selectRedeemMode(id) end)
+end
+selectRedeemMode(_G.RedeemMode or "ULTRA")
+
+local dpY = modeY + 60
+local dpCard=Instance.new("Frame")
+dpCard.Name="DPCard"
+dpCard.Size=UDim2.new(1,-20,0,38)
+dpCard.Position=UDim2.new(0,10,0,dpY)
+dpCard.BackgroundColor3=Color3.fromRGB(10,30,20)
+dpCard.BackgroundTransparency=0.15
+dpCard.BorderSizePixel=0
+dpCard.ZIndex=12
+dpCard.Parent=PageMain
+corner(dpCard,10)
+local dpStroke=stroke(dpCard,Theme.Violet,1,0.7)
+
+local dpLabel=Instance.new("TextLabel")
+dpLabel.BackgroundTransparency=1
+dpLabel.Position=UDim2.new(0,10,0,3)
+dpLabel.Size=UDim2.new(0.35,0,0,13)
+dpLabel.Font=FT
+dpLabel.Text="DIGIT+"
+dpLabel.TextSize=10
+dpLabel.TextColor3=Theme.Violet
+dpLabel.TextXAlignment=Enum.TextXAlignment.Left
+dpLabel.ZIndex=13
+dpLabel.Parent=dpCard
+
+local dpWordCount=Instance.new("TextLabel")
+dpWordCount.BackgroundTransparency=1
+dpWordCount.Position=UDim2.new(0.35,0,0,3)
+dpWordCount.Size=UDim2.new(0.65,-10,0,13)
+dpWordCount.Font=FM
+dpWordCount.Text="[CODE] words: 0 / "..tostring(DP_MIN_CODE)
+dpWordCount.TextSize=9
+dpWordCount.TextColor3=Theme.Muted
+dpWordCount.TextXAlignment=Enum.TextXAlignment.Right
+dpWordCount.ZIndex=13
+dpWordCount.Parent=dpCard
+
+local dpAccum=Instance.new("TextLabel")
+dpAccum.BackgroundTransparency=1
+dpAccum.Position=UDim2.new(0,10,0,18)
+dpAccum.Size=UDim2.new(1,-20,0,16)
+dpAccum.Font=FM
+dpAccum.Text="—"
+dpAccum.TextSize=11
+dpAccum.TextColor3=Theme.Cyan
+dpAccum.TextXAlignment=Enum.TextXAlignment.Left
+dpAccum.TextTruncate=Enum.TextTruncate.AtEnd
+dpAccum.ZIndex=13
+dpAccum.Parent=dpCard
+
+task.spawn(function()
+	while ScreenGui and ScreenGui.Parent do
+		task.wait(0.3)
+		if digitPlus.enabled or digitPlus.wordCount > 0 then
+			local ctx = _G._dpContext or "code"
+			local minW = (ctx == "riddle") and DP_MIN_RIDDLE or DP_MIN_CODE
+			dpWordCount.Text = "["..ctx:upper().."] words: "..digitPlus.wordCount.." / "..minW
+			local display = #digitPlus.wordList > 0 and table.concat(digitPlus.wordList,"") or "—"
+			if digitPlus.busy and digitPlus.currentText ~= "" then
+				display = digitPlus.currentText
+				if digitPlus.pendingAppend ~= "" then
+					display = display .. " +" .. digitPlus.pendingAppend
+				end
+			end
+			dpAccum.Text = display
+			TS:Create(dpStroke,TIS,{Transparency=digitPlus.busy and 0.1 or 0.7}):Play()
+			TS:Create(dpCard,TIS,{BackgroundTransparency=digitPlus.busy and 0 or 0.15}):Play()
+		end
+	end
+end)
+
+local resetY = dpY + 46
+local RESET_IDLE=Color3.fromRGB(24,74,48)
+local RESET_HOVER=Color3.fromRGB(38,108,66)
+local resetBtn=Instance.new("TextButton")
+resetBtn.Name="ResetInput"
+resetBtn.Size=UDim2.new(1,-20,0,36)
+resetBtn.Position=UDim2.new(0,10,0,resetY)
+resetBtn.BackgroundColor3=RESET_IDLE
+resetBtn.BorderSizePixel=0
+resetBtn.AutoButtonColor=false
+resetBtn.Font=FT
+resetBtn.TextSize=14
+resetBtn.TextColor3=Theme.Text
+resetBtn.Text="🔄  RESET INPUT"
+resetBtn.ZIndex=14
+resetBtn.Parent=PageMain
+corner(resetBtn,12)
+local rstStroke=stroke(resetBtn,Theme.Cyan,1.5,0.35)
+resetBtn.MouseEnter:Connect(function() TS:Create(resetBtn,TIS,{BackgroundColor3=RESET_HOVER}):Play() TS:Create(rstStroke,TIS,{Transparency=0.05}):Play() end)
+resetBtn.MouseLeave:Connect(function() TS:Create(resetBtn,TIS,{BackgroundColor3=RESET_IDLE}):Play() TS:Create(rstStroke,TIS,{Transparency=0.35}):Play() end)
+resetBtn.MouseButton1Click:Connect(function()
+	resetInput()
+	resetBtn.Text="✅  CLEARED"
+	task.delay(0.9,function() if resetBtn and resetBtn.Parent then resetBtn.Text="🔄  RESET INPUT" end end)
+end)
+
+local actY = resetY + 44
+local actTitle=Instance.new("TextLabel")
+actTitle.BackgroundTransparency=1
+actTitle.Position=UDim2.new(0,12,0,actY)
+actTitle.Size=UDim2.new(1,-24,0,14)
+actTitle.Font=FT
+actTitle.Text="ACTIVITY"
+actTitle.TextSize=11
+actTitle.TextColor3=Theme.Cyan
+actTitle.TextXAlignment=Enum.TextXAlignment.Left
+actTitle.ZIndex=12
+actTitle.Parent=PageMain
+
+activityHost=Instance.new("Frame")
+activityHost.Size=UDim2.new(1,-24,0,54)
+activityHost.Position=UDim2.new(0,12,0,actY+16)
+activityHost.BackgroundTransparency=1
+activityHost.ZIndex=12
+activityHost.Parent=PageMain
+local al=Instance.new("UIListLayout")
+al.SortOrder=Enum.SortOrder.LayoutOrder
+al.Padding=UDim.new(0,0)
+al.Parent=activityHost
+
+pushActivity = function(text,color)
+	if not activityHost then return end
+	local row=Instance.new("TextLabel")
+	row.Size=UDim2.new(1,-4,0,17)
+	row.BackgroundTransparency=1
+	row.Font=FM
+	row.TextSize=12
+	row.TextColor3=color or Theme.Muted
+	row.TextXAlignment=Enum.TextXAlignment.Left
+	row.TextTruncate=Enum.TextTruncate.AtEnd
+	row.Text="•  "..text
+	row.TextTransparency=1
+	row.Parent=activityHost
+	table.insert(ActivityList,1,row)
+	while #ActivityList>3 do
+		local o=table.remove(ActivityList)
+		if o then o:Destroy() end
+	end
+	for i,r in ipairs(ActivityList) do
+		r.LayoutOrder=i
+		TS:Create(r,TIS,{TextTransparency=math.min(0.05+(i-1)*0.22,0.7)}):Play()
+	end
+end
+
+local tagline=Instance.new("TextLabel")
+tagline.BackgroundTransparency=1
+tagline.Position=UDim2.new(0,10,0,actY+76)
+tagline.Size=UDim2.new(1,-20,0,16)
+tagline.Font=FM
+tagline.Text="🥝 ULTRA=paste · DIGIT+=chunk+lognormal+undetected"
+tagline.TextSize=11
+tagline.TextColor3=Theme.Muted
+tagline.ZIndex=12
+tagline.Parent=PageMain
+
+-- ══ SETTINGS PAGE ═══════════════════════════════════════════════
+local function sectionLabel(parent,y,text)
+	local l=Instance.new("TextLabel")
+	l.BackgroundTransparency=1
+	l.Position=UDim2.new(0,12,0,y)
+	l.Size=UDim2.new(1,-24,0,14)
+	l.Font=FT
+	l.Text=text
+	l.TextSize=11
+	l.TextColor3=Theme.Cyan
+	l.TextXAlignment=Enum.TextXAlignment.Left
+	l.ZIndex=12
+	l.Parent=parent
+end
+local function makeCardToggle(parent,y,icon,title,desc,initial,cb)
+	local card=Instance.new("Frame")
+	card.Size=UDim2.new(1,-20,0,44)
+	card.Position=UDim2.new(0,10,0,y)
+	card.BackgroundColor3=Theme.Card
+	card.BackgroundTransparency=0.12
+	card.BorderSizePixel=0
+	card.ZIndex=12
+	card.Parent=parent
+	corner(card,12)
+	local st=stroke(card,Theme.Cyan,1,initial and 0.3 or 0.75)
+	local ic=Instance.new("TextLabel")
+	ic.BackgroundTransparency=1
+	ic.Position=UDim2.new(0,12,0,5)
+	ic.Size=UDim2.new(1,-72,0,18)
+	ic.Font=FT
+	ic.Text=icon.."  "..title
+	ic.TextSize=13
+	ic.TextColor3=Theme.Text
+	ic.TextXAlignment=Enum.TextXAlignment.Left
+	ic.ZIndex=13
+	ic.Parent=card
+	local ds=Instance.new("TextLabel")
+	ds.BackgroundTransparency=1
+	ds.Position=UDim2.new(0,12,0,24)
+	ds.Size=UDim2.new(1,-72,0,15)
+	ds.Font=FB
+	ds.Text=desc
+	ds.TextSize=10
+	ds.TextColor3=Theme.Muted
+	ds.TextXAlignment=Enum.TextXAlignment.Left
+	ds.TextTruncate=Enum.TextTruncate.AtEnd
+	ds.ZIndex=13
+	ds.Parent=card
+	local track=Instance.new("Frame")
+	track.Size=UDim2.fromOffset(40,22)
+	track.Position=UDim2.new(1,-52,0.5,-11)
+	track.BackgroundColor3=initial and Theme.Cyan or Theme.ToggleOff
+	track.BorderSizePixel=0
+	track.ZIndex=13
+	track.Parent=card
+	corner(track,11)
+	local knob=Instance.new("Frame")
+	knob.Size=UDim2.fromOffset(16,16)
+	knob.Position=initial and UDim2.new(1,-19,0.5,-8) or UDim2.new(0,3,0.5,-8)
+	knob.BackgroundColor3=initial and Theme.Void or Theme.Text
+	knob.BorderSizePixel=0
+	knob.ZIndex=14
+	knob.Parent=track
+	corner(knob,8)
+	local hit=Instance.new("TextButton")
+	hit.Size=UDim2.fromScale(1,1)
+	hit.BackgroundTransparency=1
+	hit.Text=""
+	hit.AutoButtonColor=false
+	hit.ZIndex=15
+	hit.Parent=card
+	local state=initial
+	hit.MouseButton1Click:Connect(function()
+		state=not state
+		TS:Create(track,TIS,{BackgroundColor3=state and Theme.Cyan or Theme.ToggleOff}):Play()
+		TS:Create(knob,TIB,{Position=state and UDim2.new(1,-19,0.5,-8) or UDim2.new(0,3,0.5,-8),BackgroundColor3=state and Theme.Void or Theme.Text}):Play()
+		TS:Create(st,TIS,{Transparency=state and 0.3 or 0.75}):Play()
+		if cb then cb(state) end
+	end)
+	return card
+end
+
+sectionLabel(PageSettings,4,"FILTER")
+makeCardToggle(PageSettings,22,"👁","SAMMY FILTER","Only SpyderSammy messages",true,function(s)
+	_G.SammyFilterEnabled=s
+	if pushActivity then pushActivity(s and "Filter ON" or "Filter OFF",Theme.Amber) end
+end)
+sectionLabel(PageSettings,76,"GENERAL")
+makeCardToggle(PageSettings,94,"🐢","ANCHOR","Freeze character",false,function(s) _G.AnchorEnabled=s end)
+makeCardToggle(PageSettings,142,"🛒","AUTO BUY","Buy · 10 studs",false,function(s) _G.AutoBuyEnabled=s end)
+
+local function stepper(parent,y,label,getV,setV,minV,maxV,step)
+	step=step or 1
+	local f=Instance.new("Frame")
+	f.Size=UDim2.new(1,-20,0,38)
+	f.Position=UDim2.new(0,10,0,y)
+	f.BackgroundColor3=Theme.Card
+	f.BackgroundTransparency=0.12
+	f.BorderSizePixel=0
+	f.ZIndex=12
+	f.Parent=parent
+	corner(f,12)
+	stroke(f,Theme.Cyan,1,0.75)
+	local lb=Instance.new("TextLabel")
+	lb.BackgroundTransparency=1
+	lb.Position=UDim2.new(0,12,0,0)
+	lb.Size=UDim2.new(0.5,0,1,0)
+	lb.Font=FT
+	lb.Text=label
+	lb.TextSize=13
+	lb.TextColor3=Theme.Text
+	lb.TextXAlignment=Enum.TextXAlignment.Left
+	lb.ZIndex=13
+	lb.Parent=f
+	local box=Instance.new("Frame")
+	box.Size=UDim2.fromOffset(100,28)
+	box.Position=UDim2.new(1,-110,0.5,-14)
+	box.BackgroundColor3=Theme.PanelSoft
+	box.BorderSizePixel=0
+	box.ZIndex=13
+	box.Parent=f
+	corner(box,10)
+	local val=Instance.new("TextLabel")
+	val.Size=UDim2.fromScale(1,1)
+	val.BackgroundTransparency=1
+	val.Font=FT
+	val.Text=tostring(getV())
+	val.TextSize=15
+	val.TextColor3=Theme.Cyan
+	val.ZIndex=14
+	val.Parent=box
+	local mi=Instance.new("TextButton")
+	mi.Size=UDim2.fromOffset(30,28)
+	mi.BackgroundTransparency=1
+	mi.Text="−"
+	mi.Font=FT
+	mi.TextSize=18
+	mi.TextColor3=Theme.Text
+	mi.ZIndex=15
+	mi.Parent=box
+	local pl=Instance.new("TextButton")
+	pl.Size=UDim2.fromOffset(30,28)
+	pl.Position=UDim2.new(1,-30,0,0)
+	pl.BackgroundTransparency=1
+	pl.Text="+"
+	pl.Font=FT
+	pl.TextSize=18
+	pl.TextColor3=Theme.Text
+	pl.ZIndex=15
+	pl.Parent=box
+	mi.MouseButton1Click:Connect(function() setV(math.max(minV,getV()-step)) val.Text=tostring(getV()) updateCounters() end)
+	pl.MouseButton1Click:Connect(function() setV(math.min(maxV,getV()+step)) val.Text=tostring(getV()) updateCounters() end)
+end
+
+stepper(PageSettings,196,"Size %",
+	function() return _G.UiScalePct end,
+	function(v) _G.UiScalePct=v applyScale() end,
+	40,120,5)
+
+stepper(PageSettings,242,"Digit delay ms",
+	function() return math.floor((_G.DigitDelay or 0.045)*1000) end,
+	function(v) _G.DigitDelay = v/1000 end,
+	10,300,5)
+
+local info=Instance.new("TextLabel")
+info.BackgroundTransparency=1
+info.Position=UDim2.new(0,12,0,340)
+info.Size=UDim2.new(1,-24,0,110)
+info.Font=FB
+info.TextSize=11
+info.TextColor3=Theme.Muted
+info.TextXAlignment=Enum.TextXAlignment.Left
+info.TextYAlignment=Enum.TextYAlignment.Top
+info.TextWrapped=true
+info.Text="ULTRA: paste directo.\nDIGIT+ UNDETECTED: chunk typing · log-normal jitter · sin VIM · sin getconns por tecla.\nWAIT FILTER: detecta 'wait/waaait/w8' → bloquea "..tostring(WAIT_WINDOW_SECS).."s.\nSUBMIT JITTER: 150-800ms antes de Enter."
+info.ZIndex=12
+info.Parent=PageSettings
+
+-- ══ NAV ═════════════════════════════════════════════════════════
+local Nav=Instance.new("Frame")
+Nav.Size=UDim2.new(1,-20,0,NAV_H)
+Nav.Position=UDim2.new(0,10,1,-(NAV_H+8))
+Nav.BackgroundColor3=Theme.Card
+Nav.BackgroundTransparency=0.05
+Nav.BorderSizePixel=0
+Nav.ZIndex=14
+Nav.Parent=MainFrame
+corner(Nav,14)
+stroke(Nav,Theme.Cyan,1,0.6)
+
+local tabIndicator=Instance.new("Frame")
+tabIndicator.Size=UDim2.new(0.5,-16,0,3)
+tabIndicator.Position=UDim2.new(0,8,1,-5)
+tabIndicator.BackgroundColor3=Theme.Cyan
+tabIndicator.BorderSizePixel=0
+tabIndicator.ZIndex=15
+tabIndicator.Parent=Nav
+corner(tabIndicator,2)
+
+local function navTab(text,xScale)
+	local b=Instance.new("TextButton")
+	b.Size=UDim2.new(0.5,-4,1,-6)
+	b.Position=UDim2.new(xScale,2,0,2)
+	b.BackgroundTransparency=1
+	b.Font=FT
+	b.TextSize=12
+	b.Text=text
+	b.TextColor3=Theme.Muted
+	b.ZIndex=15
+	b.AutoButtonColor=false
+	b.Parent=Nav
+	return b
+end
+local navMain=navTab("◉  MAIN",0)
+local navSet=navTab("⚙  SETTINGS",0.5)
+local function selectTab(name)
+	currentTab=name
+	PageMain.Visible=name=="Main"
+	PageSettings.Visible=name=="Settings"
+	navMain.TextColor3=name=="Main" and Theme.Text or Theme.Muted
+	navSet.TextColor3=name=="Settings" and Theme.Text or Theme.Muted
+	TS:Create(tabIndicator,TIS,{Position=name=="Main" and UDim2.new(0,8,1,-5) or UDim2.new(0.5,8,1,-5)}):Play()
+end
+navMain.MouseButton1Click:Connect(function() selectTab("Main") end)
+navSet.MouseButton1Click:Connect(function() selectTab("Settings") end)
+selectTab("Main")
+
+-- ══ ORB ═════════════════════════════════════════════════════════
+Orb=Instance.new("TextButton")
+Orb.Size=UDim2.fromOffset(42,42)
+Orb.AnchorPoint=Vector2.new(0.5,0)
+Orb.Position=UDim2.new(0.5,0,0,60)
+Orb.BackgroundColor3=Theme.Panel
+Orb.BackgroundTransparency=0.05
+Orb.Text="🐢"
+Orb.Font=FT
+Orb.TextSize=20
+Orb.TextColor3=Theme.Cyan
+Orb.Visible=false
+Orb.ZIndex=20
+Orb.AutoButtonColor=false
+Orb.Parent=ScreenGui
+corner(Orb,21)
+stroke(Orb,Theme.Cyan,1.5,0.25)
+orbScale=Instance.new("UIScale")
+orbScale.Scale=uiScale.Scale
+orbScale.Parent=Orb
+
+local function setMinimized(state)
+	isMinimized=state
+	if state then
+		TS:Create(MainFrame,TIQ,{Size=UDim2.fromOffset(40,40),BackgroundTransparency=1}):Play()
+		task.wait(0.2)
+		MainFrame.Visible=false
+		Orb.Visible=true
+	else
+		Orb.Visible=false
+		MainFrame.Visible=true
+		MainFrame.Size=UDim2.fromOffset(PANEL_W*0.94,PANEL_H*0.94)
+		MainFrame.BackgroundTransparency=1
+		TS:Create(MainFrame,TIB,{Size=UDim2.fromOffset(PANEL_W,PANEL_H),BackgroundTransparency=0.04}):Play()
+	end
+end
+MinBtn.MouseButton1Click:Connect(function() setMinimized(true) end)
+Orb.MouseButton1Click:Connect(function() setMinimized(false) end)
+
+do
+	local dragging,start,startPos
+	Header.InputBegan:Connect(function(input)
+		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+			dragging=true start=input.Position startPos=MainFrame.Position
+		end
+	end)
+	Header.InputEnded:Connect(function(input)
+		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+			dragging=false
+		end
+	end)
+	UIS.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
+			local d=input.Position-start
+			MainFrame.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y)
+		end
+	end)
+end
+
+task.spawn(function()
+	while ScreenGui and ScreenGui.Parent do
+		local t=tick()
+		if g1 then g1.Rotation=(t*8)%360 end
+		if StatusDot then StatusDot.BackgroundTransparency=0.1+math.sin(t*1.5)*0.15 end
+		task.wait(0.25)
+	end
+end)
+
+startPlayerGuiScanner()
+updateCounters()
+setStatus("● ONLINE","Waiting for trigger","ok")
+
+task.spawn(function()
+	while ScreenGui and ScreenGui.Parent do task.wait(1) end
+	getgenv().KiwiSniperV2=nil
+	getgenv().K2CodeSniperV2=nil
+	getgenv().KiwiSniperGui=nil
+	getgenv().K2CodeSniperGui=nil
+end)
+
+if #newBrainrots>0 then
+	task.delay(1.5,function()
+		setStatus("🆕 NEW","+"..#newBrainrots.." brainrot"..(#newBrainrots>1 and "s" or "").." detected","ok")
+		for _,e in ipairs(newBrainrots) do
+			pushActivity("NEW: "..e.display.." ("..e.rarity..")",Theme.Green)
+			task.wait(0.2)
+		end
+	end)
+end
+
+print("[KIWI] V4 MOBILE FIXED — Delta ready 🐢")
+print("[KIWI] "..(newestBrainrot and ("newest: "..newestBrainrot.display) or "READY"))
